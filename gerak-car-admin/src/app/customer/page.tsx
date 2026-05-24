@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import Image from 'next/image'
 
 export default async function CustomerDashboard() {
   const supabase = await createClient()
@@ -35,8 +36,8 @@ export default async function CustomerDashboard() {
       {/* Header */}
       <header className="h-20 bg-zinc-900/80 backdrop-blur-md border-b border-zinc-800 flex items-center justify-between px-6 sticky top-0 z-10 shadow-md">
         <div className="flex items-center gap-4">
-           <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-indigo-400 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <span className="text-white font-bold text-lg">GC</span>
+           <div className="w-10 h-10 bg-black/50 p-1 rounded-xl border border-white/10 shadow-xl overflow-hidden relative">
+              <Image src="/logo.png" alt="Gerak Car Logo" fill className="object-cover" />
            </div>
            <div>
              <h1 className="text-white font-semibold text-lg leading-tight">Request Ride</h1>
