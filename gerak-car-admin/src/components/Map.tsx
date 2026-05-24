@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { useTheme } from 'next-themes'
 
 // Fix for missing default marker icons in Leaflet with Webpack/Next.js
 const icon = L.icon({
@@ -52,12 +53,17 @@ const DEFAULT_CENTER: [number, number] = [3.7176, 103.1119]
 
 export default function InteractiveMap({ userLocation, markers = [], onMapClick }: MapProps) {
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER)
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     if (userLocation) {
       setCenter(userLocation)
     }
   }, [userLocation])
+
+  const isDark = mounted ? resolvedTheme === 'dark' : true // Default to dark during SSR to avoid flash if mostly dark app
 
   return (
     <div className="w-full h-full rounded-3xl overflow-hidden shadow-2xl relative z-0">
@@ -67,10 +73,10 @@ export default function InteractiveMap({ userLocation, markers = [], onMapClick 
         style={{ width: '100%', height: '100%', zIndex: 0 }}
         zoomControl={false}
       >
-        {/* CartoDB Dark Matter Tile Layer (100% Free, No API Key) */}
         <TileLayer
+          key={isDark ? 'dark' : 'light'}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url={isDark ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"}
         />
         
         <MapClickHandler onClick={onMapClick} />
