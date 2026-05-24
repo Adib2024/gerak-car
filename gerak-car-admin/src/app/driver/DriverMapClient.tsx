@@ -120,6 +120,15 @@ export default function DriverMapClient() {
   return (
     <div className="relative w-full h-full overflow-hidden flex flex-col bg-[#1c1c1c] font-sans">
       
+      {/* Logout Button (Top Left) */}
+      <div className="absolute top-6 left-6 z-30 pointer-events-auto">
+         <form action="/auth/signout" method="post">
+            <button type="submit" className="w-12 h-12 bg-[#2a2a2a]/80 backdrop-blur-xl rounded-full flex items-center justify-center border border-white/10 shadow-lg text-red-500 hover:bg-red-500 hover:text-white transition-all group">
+               <svg className="w-5 h-5 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
+         </form>
+      </div>
+
       {/* 100% Full Screen Map */}
       <div className="absolute inset-0 w-full h-full z-0">
         <InteractiveMap userLocation={location} markers={markers} />
