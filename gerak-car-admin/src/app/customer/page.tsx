@@ -45,7 +45,7 @@ export default async function CustomerDashboard() {
            </div>
            <div>
              <h1 className="text-white font-extrabold text-lg leading-tight tracking-wide">Request Ride</h1>
-             <p className="text-cyan-400 font-bold text-xs tracking-wider uppercase">Welcome, {profile.name || user.email.split('@')[0]}</p>
+             <p className="text-cyan-400 font-bold text-xs tracking-wider uppercase">Welcome, {profile.name || user.email?.split('@')[0] || 'Customer'}</p>
            </div>
         </div>
         <form action="/auth/signout" method="post">

@@ -45,7 +45,7 @@ export default async function DriverDashboard() {
            </div>
            <div>
              <h1 className="text-white font-extrabold text-lg leading-tight tracking-wide">Driver Portal</h1>
-             <p className="text-emerald-400 font-bold text-xs tracking-wider uppercase">Logged in as {profile.name || user.email.split('@')[0]}</p>
+             <p className="text-emerald-400 font-bold text-xs tracking-wider uppercase">Logged in as {profile.name || user.email?.split('@')[0] || 'Driver'}</p>
            </div>
         </div>
         <form action="/auth/signout" method="post">
