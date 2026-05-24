@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Image from 'next/image'
+import RoleUpdater from './RoleUpdater'
 
 export default async function Dashboard() {
   const supabase = await createClient()
@@ -19,6 +20,13 @@ export default async function Dashboard() {
     .select('*')
     .eq('id', user.id)
     .single()
+
+  // Fetch all users for the User Management tab
+  const { data: allUsers } = await supabase
+    .from('users')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(50)
 
   if (profile?.role !== 'admin') {
     return (
@@ -141,6 +149,56 @@ export default async function Dashboard() {
                  </div>
                  <p className="text-zinc-400 font-medium text-lg">No activity yet</p>
                  <p className="text-zinc-600 text-sm mt-2">Things will appear here once users join.</p>
+              </div>
+           </div>
+
+           {/* User Management Section */}
+           <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl mt-10">
+              <div className="flex items-center justify-between mb-8">
+                 <h3 className="text-white font-extrabold text-xl">User Management</h3>
+                 <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full text-xs font-bold">
+                    {allUsers?.length || 0} Registered
+                 </span>
+              </div>
+              
+              <div className="overflow-x-auto">
+                 <table className="w-full text-left border-collapse">
+                    <thead>
+                       <tr className="border-b border-white/10 text-zinc-500 text-xs uppercase tracking-wider">
+                          <th className="pb-4 pl-4 font-bold">Email</th>
+                          <th className="pb-4 font-bold">Name</th>
+                          <th className="pb-4 font-bold">Joined</th>
+                          <th className="pb-4 pr-4 font-bold">Role Access</th>
+                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                       {allUsers?.map((u: any) => (
+                          <tr key={u.id} className="hover:bg-white/5 transition-colors group">
+                             <td className="py-4 pl-4">
+                                <div className="flex items-center gap-3">
+                                   <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-bold text-xs border border-white/10">
+                                      {u.email.charAt(0).toUpperCase()}
+                                   </div>
+                                   <span className="text-white font-medium text-sm">{u.email}</span>
+                                </div>
+                             </td>
+                             <td className="py-4 text-zinc-400 text-sm">{u.name || '-'}</td>
+                             <td className="py-4 text-zinc-500 text-sm">
+                                {new Date(u.created_at).toLocaleDateString()}
+                             </td>
+                             <td className="py-4 pr-4">
+                                <RoleUpdater userId={u.id} currentRole={u.role} />
+                             </td>
+                          </tr>
+                       ))}
+                       
+                       {(!allUsers || allUsers.length === 0) && (
+                          <tr>
+                             <td colSpan={4} className="py-8 text-center text-zinc-500 text-sm">No users found.</td>
+                          </tr>
+                       )}
+                    </tbody>
+                 </table>
               </div>
            </div>
         </main>
