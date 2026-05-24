@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/utils/supabase/client'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -37,7 +39,7 @@ export default function LoginPage() {
       }
       setLoading(false)
     } else {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -45,19 +47,11 @@ export default function LoginPage() {
         setError(error.message)
         setLoading(false)
       } else {
-        // Fast client-side routing check
-        const { data: profile } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', data.user.id)
-          .single()
-        
-        if (profile?.role) {
-          // Hard navigation to skip Next.js sluggish cache and render immediately
-          window.location.href = `/${profile.role}`
-        } else {
-          window.location.href = '/'
-        }
+        // FAST ROUTING: Skip the manual database query!
+        // Just push to the root page, and the blazing-fast Server Component 
+        // will read your secure cookie and instantly redirect you to your correct dashboard!
+        router.push('/')
+        router.refresh()
       }
     }
   }
