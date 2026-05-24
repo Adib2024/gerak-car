@@ -49,18 +49,14 @@ export default function DriverMapClient() {
     return () => navigator.geolocation.clearWatch(watchId)
   }, [supabase.auth])
 
-  // Setup Realtime subscription for incoming rides when online
   useEffect(() => {
     if (!isOnline) {
-      // CRITICAL FIX: Only clear the ride if it was just pending. 
-      // If we accepted it, we want to keep it on screen!
       setIncomingRide((prev: any) => (prev && prev.status !== 'pending' ? prev : null))
       return
     }
 
     const channel = supabase.channel('driver-rides')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: "status=eq.pending" }, (payload) => {
-        console.log("New incoming ride!", payload)
         setIncomingRide(payload.new)
       })
       .subscribe()
@@ -73,14 +69,10 @@ export default function DriverMapClient() {
   const updateRideStatus = async (newStatus: string) => {
     if (!incomingRide || !userId) return
     
-    // Optimistic UI update
     const previousStatus = incomingRide.status
     setIncomingRide({ ...incomingRide, status: newStatus })
 
-    // If accepting, we go offline automatically so we don't get new rides
-    if (newStatus === 'accepted') {
-      setIsOnline(false)
-    }
+    if (newStatus === 'accepted') setIsOnline(false)
 
     const { error } = await supabase
       .from('rides')
@@ -95,12 +87,13 @@ export default function DriverMapClient() {
     }
     
     if (newStatus === 'completed') {
-      setIncomingRide(null)
-      setIsOnline(true) // Go back online after completing a ride
+      setTimeout(() => {
+        setIncomingRide(null)
+        setIsOnline(true)
+      }, 3000)
     }
   }
 
-  // Draw incoming ride markers
   const markers = []
   if (incomingRide) {
     try {
@@ -124,123 +117,122 @@ export default function DriverMapClient() {
     } catch(e) {}
   }
 
-  // Determine what button to show based on ride status
-  const getLifecycleButton = () => {
-    if (!incomingRide) return null
-
-    switch (incomingRide.status) {
-      case 'accepted':
-        return (
-          <button onClick={() => updateRideStatus('arrived')} className="w-full bg-blue-500 hover:bg-blue-400 text-white font-extrabold py-4 px-6 rounded-2xl transition-all shadow-lg text-lg">
-             I HAVE ARRIVED
-          </button>
-        )
-      case 'arrived':
-        return (
-          <button onClick={() => updateRideStatus('in_progress')} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-4 px-6 rounded-2xl transition-all shadow-lg text-lg">
-             START TRIP
-          </button>
-        )
-      case 'in_progress':
-        return (
-          <button onClick={() => updateRideStatus('completed')} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-4 px-6 rounded-2xl transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] text-lg border border-emerald-400">
-             COMPLETE TRIP
-          </button>
-        )
-      default:
-        return null
-    }
-  }
-
   return (
-    <div className="relative w-full h-full min-h-[500px] rounded-3xl overflow-hidden z-0">
+    <div className="relative w-full h-[calc(100vh-80px)] overflow-hidden flex flex-col bg-black">
       
-      {/* Floating Status UI */}
+      {/* 100% Full Screen Map */}
+      <div className="absolute inset-0 w-full h-full z-0">
+        <InteractiveMap userLocation={location} markers={markers} />
+      </div>
+
+      {/* Floating Status UI (When Offline/Online without Ride) */}
       {!incomingRide && (
-        <div className="absolute top-6 left-0 right-0 z-20 px-6 max-w-sm mx-auto flex justify-center pointer-events-none">
+        <div className="absolute bottom-10 left-0 right-0 z-20 px-6 flex justify-center pointer-events-none">
           <button 
             onClick={() => setIsOnline(!isOnline)}
-            className={`pointer-events-auto px-8 py-4 rounded-full font-extrabold text-lg tracking-wider shadow-2xl transition-all border ${
+            className={`pointer-events-auto px-10 py-5 rounded-full font-extrabold text-xl tracking-wider shadow-2xl transition-all border w-full max-w-sm ${
               isOnline 
-                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.3)]' 
-                : 'bg-black/60 border-white/20 text-white hover:bg-black/80 backdrop-blur-md'
+                ? 'bg-emerald-500 text-black hover:bg-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.5)] border-emerald-400' 
+                : 'bg-zinc-900 border-white/10 text-white hover:bg-zinc-800'
             }`}
           >
-            {isOnline ? '🟢 YOU ARE ONLINE' : '🔴 GO ONLINE'}
+            {isOnline ? '🟢 YOU ARE ONLINE' : 'GO ONLINE'}
           </button>
         </div>
       )}
 
-      {/* Incoming Ride Popup */}
-      {incomingRide && incomingRide.status === 'pending' && (
-        <div className="absolute bottom-6 left-0 right-0 z-30 px-6 max-w-md mx-auto pointer-events-none">
-          <div className="bg-black/80 backdrop-blur-3xl border border-emerald-500/30 rounded-3xl p-6 shadow-[0_0_50px_rgba(16,185,129,0.2)] pointer-events-auto">
-            <h3 className="text-white font-extrabold text-xl mb-4 flex items-center gap-2">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+      {/* Incoming / Active Ride Bottom Sheet */}
+      {incomingRide && (
+        <div className="absolute bottom-0 left-0 right-0 z-30 w-full pointer-events-none flex flex-col items-center">
+          <div className="w-full max-w-lg bg-zinc-950 shadow-[0_-20px_40px_rgba(0,0,0,0.6)] pointer-events-auto flex flex-col p-6 pb-8 transition-transform duration-300 rounded-t-[32px] border-t border-l border-r border-white/5">
+            {/* Grab-style Handle bar */}
+            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-6"></div>
+
+            {/* HEADER */}
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-white font-extrabold text-2xl flex items-center gap-3">
+                {incomingRide.status === 'pending' && (
+                  <>
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    New Request
+                  </>
+                )}
+                {incomingRide.status === 'accepted' && 'En route to pickup'}
+                {incomingRide.status === 'arrived' && 'Waiting for customer'}
+                {incomingRide.status === 'in_progress' && 'Driving to dropoff'}
+                {incomingRide.status === 'completed' && 'Trip Completed!'}
+              </h3>
+              <span className="bg-emerald-500/10 text-emerald-400 text-sm font-bold px-4 py-2 rounded-xl border border-emerald-500/20">
+                RM {incomingRide.price}
               </span>
-              New Ride Request
-            </h3>
+            </div>
+
+            {/* ROUTE DISPLAY */}
+            <div className="relative bg-zinc-900 border border-white/10 rounded-3xl p-4 mb-6 shadow-inner">
+               <div className="absolute left-7 top-[34px] bottom-[34px] w-0.5 bg-white/10"></div>
+               
+               <div className="flex items-center gap-4 mb-4">
+                  <div className="w-6 h-6 flex items-center justify-center relative z-10">
+                     <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                  </div>
+                  <div className="flex-1 text-sm font-medium text-white truncate">
+                     {incomingRide.pickup_address}
+                  </div>
+               </div>
+
+               <div className="h-px bg-white/5 ml-10 mb-4"></div>
+
+               <div className="flex items-center gap-4">
+                  <div className="w-6 h-6 flex items-center justify-center relative z-10 bg-zinc-900">
+                     <div className="w-2 h-2 bg-blue-500 rounded-sm"></div>
+                  </div>
+                  <div className="flex-1 text-sm font-medium text-white truncate">
+                     {incomingRide.dropoff_address}
+                  </div>
+               </div>
+            </div>
+
+            {/* ACTION BUTTONS */}
+            {incomingRide.status === 'pending' && (
+              <div className="flex gap-4">
+                <button onClick={() => setIncomingRide(null)} className="flex-[0.5] bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-5 rounded-2xl transition-all">
+                  DECLINE
+                </button>
+                <button onClick={() => updateRideStatus('accepted')} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-5 rounded-2xl transition-all shadow-lg text-lg">
+                  ACCEPT RIDE
+                </button>
+              </div>
+            )}
             
-            <div className="space-y-3 mb-6">
-              <div className="bg-white/5 border border-emerald-500/30 rounded-xl p-3">
-                <p className="text-zinc-500 text-xs font-bold uppercase mb-1">Pickup</p>
-                <p className="text-emerald-400 font-medium text-sm truncate">{incomingRide.pickup_address}</p>
-              </div>
-              <div className="bg-white/5 border border-cyan-500/30 rounded-xl p-3">
-                <p className="text-zinc-500 text-xs font-bold uppercase mb-1">Dropoff</p>
-                <p className="text-cyan-400 font-medium text-sm truncate">{incomingRide.dropoff_address}</p>
-              </div>
-            </div>
+            {incomingRide.status === 'accepted' && (
+              <button onClick={() => updateRideStatus('arrived')} className="w-full bg-blue-500 hover:bg-blue-400 text-white font-extrabold py-5 rounded-2xl transition-all shadow-lg text-lg">
+                I HAVE ARRIVED
+              </button>
+            )}
 
-            <div className="flex gap-3">
-              <button onClick={() => setIncomingRide(null)} className="flex-1 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 font-bold py-3 px-4 rounded-xl transition-all border border-red-500/20">
-                Decline
+            {incomingRide.status === 'arrived' && (
+              <button onClick={() => updateRideStatus('in_progress')} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-5 rounded-2xl transition-all shadow-lg text-lg">
+                START TRIP
               </button>
-              <button onClick={() => updateRideStatus('accepted')} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-3 px-4 rounded-xl transition-all shadow-lg">
-                Accept Ride
+            )}
+
+            {incomingRide.status === 'in_progress' && (
+              <button onClick={() => updateRideStatus('completed')} className="w-full bg-red-500 hover:bg-red-400 text-white font-extrabold py-5 rounded-2xl transition-all shadow-lg text-lg">
+                COMPLETE TRIP
               </button>
-            </div>
+            )}
+            
+            {incomingRide.status === 'completed' && (
+              <div className="text-center py-4">
+                <p className="text-zinc-400 font-medium">Returning to map...</p>
+              </div>
+            )}
           </div>
         </div>
       )}
-
-      {/* Active Ride Lifecycle UI */}
-      {incomingRide && incomingRide.status !== 'pending' && (
-        <div className="absolute bottom-6 left-0 right-0 z-30 px-6 max-w-md mx-auto pointer-events-none">
-          <div className="bg-black/90 backdrop-blur-3xl border border-white/20 rounded-3xl p-6 shadow-[0_0_50px_rgba(0,0,0,0.5)] pointer-events-auto">
-             <div className="flex justify-between items-center mb-6">
-               <h3 className="text-white font-extrabold text-xl">
-                 {incomingRide.status === 'accepted' && 'En route to pickup'}
-                 {incomingRide.status === 'arrived' && 'Waiting for customer'}
-                 {incomingRide.status === 'in_progress' && 'Driving to destination'}
-               </h3>
-               <span className="bg-white/10 text-white text-xs font-bold px-3 py-1 rounded-full border border-white/20">
-                 RM {incomingRide.price}
-               </span>
-             </div>
-
-             <div className="mb-6">
-               {incomingRide.status === 'accepted' || incomingRide.status === 'arrived' ? (
-                 <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
-                   <p className="text-emerald-500 text-xs font-bold uppercase mb-1">Navigate To Pickup</p>
-                   <p className="text-white font-medium text-sm">{incomingRide.pickup_address}</p>
-                 </div>
-               ) : (
-                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4">
-                   <p className="text-cyan-500 text-xs font-bold uppercase mb-1">Navigate To Dropoff</p>
-                   <p className="text-white font-medium text-sm">{incomingRide.dropoff_address}</p>
-                 </div>
-               )}
-             </div>
-
-             {getLifecycleButton()}
-          </div>
-        </div>
-      )}
-
-      <InteractiveMap userLocation={location} markers={markers} />
     </div>
   )
 }
