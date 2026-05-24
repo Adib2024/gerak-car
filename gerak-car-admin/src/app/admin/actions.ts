@@ -7,8 +7,12 @@ export async function updateUserRole(userId: string, newRole: 'admin' | 'driver'
   const supabase = await createClient()
 
   // Verify the current user is an admin
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  
+  if (authError || !user) {
+    console.error('Auth Error in Server Action:', authError)
+    return { success: false, error: 'Not authenticated. Please refresh the page.' }
+  }
 
   const { data: profile } = await supabase
     .from('users')
@@ -17,7 +21,7 @@ export async function updateUserRole(userId: string, newRole: 'admin' | 'driver'
     .single()
 
   if (profile?.role !== 'admin') {
-    throw new Error('Unauthorized')
+    return { success: false, error: 'Unauthorized: Admin access required.' }
   }
 
   // Update the target user's role
