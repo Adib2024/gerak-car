@@ -182,39 +182,39 @@ export default function DriverMapClient() {
         {!incomingRide && (
           <>
             {/* Go Online Pill */}
-            <div className="flex justify-center -mb-6 relative z-30">
+            <div className="flex justify-center -mb-5 relative z-30">
                <button 
                   onClick={() => setIsOnline(!isOnline)}
-                  className={`pointer-events-auto px-8 py-3.5 rounded-full font-bold text-lg flex items-center gap-3 shadow-2xl transition-colors border-2 ${
+                  className={`pointer-events-auto px-6 py-2.5 rounded-full font-bold text-base flex items-center gap-2 shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-colors border-2 ${
                     isOnline ? 'bg-[#00B14F] text-white border-[#00B14F] hover:bg-[#009b44]' : 'bg-[#1c1c1c] text-white border-transparent hover:bg-[#2a2a2a]'
                   }`}
                >
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   {isOnline ? 'Go Offline' : 'Go Online'}
                </button>
             </div>
 
             {/* Status Sheet */}
-            <div className="bg-[#242424] pt-10 pb-6 px-4 rounded-t-3xl pointer-events-auto flex flex-col border-t border-white/5">
+            <div className="bg-[#242424] pt-8 pb-4 px-4 rounded-t-3xl pointer-events-auto flex flex-col border-t border-white/5">
                {/* Status Bar */}
-               <div className="bg-[#1c1c1c] rounded-xl p-4 flex items-center gap-3 mb-6">
-                  <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-[#00B14F]' : 'bg-[#FF5A5F]'}`}></div>
-                  <span className="text-white font-medium text-[15px]">{isOnline ? "You're online. Finding rides..." : "You're offline."}</span>
+               <div className="bg-[#1c1c1c] rounded-xl p-3 flex items-center gap-3 mb-4 shadow-inner">
+                  <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-[#00B14F]' : 'bg-[#FF5A5F]'}`}></div>
+                  <span className="text-white font-medium text-sm">{isOnline ? "You're online. Finding rides..." : "You're offline."}</span>
                </div>
 
                {/* Quick Actions */}
-               <div className="flex justify-center gap-12 mb-4">
-                  <div className="flex flex-col items-center gap-2 cursor-pointer group">
-                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center group-hover:bg-zinc-200 transition-colors shadow-sm">
-                        <svg className="w-8 h-8 text-[#006633]" fill="currentColor" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+               <div className="flex justify-center gap-10 mb-2">
+                  <div className="flex flex-col items-center gap-1.5 cursor-pointer group">
+                     <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center group-hover:bg-zinc-200 transition-colors shadow-md">
+                        <svg className="w-6 h-6 text-[#006633]" fill="currentColor" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
                      </div>
-                     <span className="text-zinc-300 text-xs font-medium text-center leading-tight">Service<br/>Types</span>
+                     <span className="text-zinc-300 text-[10px] font-medium text-center leading-tight">Service<br/>Types</span>
                   </div>
-                  <div className="flex flex-col items-center gap-2 cursor-pointer group">
-                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center group-hover:bg-zinc-200 transition-colors shadow-sm">
-                        <svg className="w-7 h-7 text-[#006633]" fill="currentColor" viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.5 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+                  <div className="flex flex-col items-center gap-1.5 cursor-pointer group">
+                     <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center group-hover:bg-zinc-200 transition-colors shadow-md">
+                        <svg className="w-5 h-5 text-[#006633]" fill="currentColor" viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.5 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
                      </div>
-                     <span className="text-zinc-300 text-xs font-medium text-center leading-tight">Diagnostic</span>
+                     <span className="text-zinc-300 text-[10px] font-medium text-center leading-tight">Diagnostic</span>
                   </div>
                </div>
             </div>
@@ -222,27 +222,27 @@ export default function DriverMapClient() {
         )}
 
         {/* Bottom Navigation Bar */}
-        <div className="bg-[#151515] h-16 flex items-center justify-around pointer-events-auto border-t border-white/5 pb-safe">
+        <div className="bg-[#151515] h-[60px] flex items-center justify-around pointer-events-auto border-t border-white/5 pb-safe">
            <button className="flex flex-col items-center gap-1 text-[#00B14F]">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-              <span className="text-[10px] font-medium">Home</span>
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+              <span className="text-[9px] font-bold">Home</span>
            </button>
            <button className="flex flex-col items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-              <span className="text-[10px] font-medium">Earnings</span>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+              <span className="text-[9px] font-medium">Earnings</span>
            </button>
            <button className="flex flex-col items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors relative">
-              <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#FF5A5F] rounded-full border-2 border-[#151515]"></div>
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
-              <span className="text-[10px] font-medium">Inbox</span>
+              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#FF5A5F] rounded-full border border-[#151515]"></div>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+              <span className="text-[9px] font-medium">Inbox</span>
            </button>
            <button className="flex flex-col items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <span className="text-[10px] font-medium">Planner</span>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span className="text-[9px] font-medium">Planner</span>
            </button>
            <button className="flex flex-col items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-              <span className="text-[10px] font-medium">Profile</span>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              <span className="text-[9px] font-medium">Profile</span>
            </button>
         </div>
       </div>
