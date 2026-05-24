@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Image from 'next/image'
+import CustomerMapClient from './CustomerMapClient'
 
 export default async function CustomerDashboard() {
   const supabase = await createClient()
@@ -93,15 +94,9 @@ export default async function CustomerDashboard() {
             </button>
          </div>
 
-         {/* Map Placeholder */}
-         <div className="flex-1 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl flex items-center justify-center overflow-hidden relative shadow-2xl min-h-[400px]">
-            <div className="text-center relative z-10 p-8">
-               <div className="w-20 h-20 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
-                  <svg className="w-10 h-10 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-               </div>
-               <h3 className="text-white font-extrabold text-xl mb-2">Live Map Loading</h3>
-               <p className="text-zinc-400 font-medium max-w-sm mx-auto">Interactive Mapbox integration is scheduled for Phase 3. Real-time driver tracking will appear here.</p>
-            </div>
+         {/* Map Integration */}
+         <div className="flex-1 flex items-center justify-center relative shadow-2xl min-h-[400px]">
+            <CustomerMapClient />
          </div>
       </main>
     </div>

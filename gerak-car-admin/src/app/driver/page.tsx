@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Image from 'next/image'
+import DriverMapClient from './DriverMapClient'
 
 export default async function DriverDashboard() {
   const supabase = await createClient()
@@ -72,15 +73,9 @@ export default async function DriverDashboard() {
             </button>
          </div>
 
-         {/* Map Placeholder */}
-         <div className="flex-1 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl flex items-center justify-center overflow-hidden relative shadow-2xl min-h-[400px]">
-            <div className="text-center relative z-10 p-8">
-               <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
-                  <svg className="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
-               </div>
-               <h3 className="text-white font-extrabold text-xl mb-2">Live Map Loading</h3>
-               <p className="text-zinc-400 font-medium max-w-sm mx-auto">Interactive Mapbox integration is scheduled for Phase 3. Driver tracking will appear here.</p>
-            </div>
+         {/* Map Integration */}
+         <div className="flex-1 flex items-center justify-center relative shadow-2xl min-h-[400px]">
+            <DriverMapClient />
          </div>
       </main>
     </div>
