@@ -39,19 +39,19 @@ export default function CustomerMapClient() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<NominatimResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [rideStatus, setRideStatus] = useState<'idle' | 'pending' | 'accepted'>('idle')
+  
+  // Ride State
+  const [activeRideId, setActiveRideId] = useState<string | null>(null)
+  const [rideStatus, setRideStatus] = useState<'idle' | 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed'>('idle')
 
   useEffect(() => {
-    // Get user session
     supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user?.id || null))
 
     if (navigator.geolocation) {
-      // Use watchPosition for real-time tracking of MY location
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
           const coords: [number, number] = [position.coords.latitude, position.coords.longitude]
           setMyGpsLocation(coords)
-          // Default pickup to GPS if not set
           setPickup((prev) => prev || { lat: coords[0], lng: coords[1], label: "My GPS Location" })
         },
         (err) => console.error("Location error:", err),
@@ -60,6 +60,29 @@ export default function CustomerMapClient() {
       return () => navigator.geolocation.clearWatch(watchId)
     }
   }, [supabase.auth])
+
+  // Listen to ride updates
+  useEffect(() => {
+    if (!activeRideId) return
+
+    const channel = supabase.channel(`ride-${activeRideId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${activeRideId}` }, (payload) => {
+        console.log("Ride updated:", payload.new.status)
+        setRideStatus(payload.new.status as any)
+        
+        if (payload.new.status === 'completed') {
+          setTimeout(() => {
+            setRideStatus('idle')
+            setActiveRideId(null)
+          }, 5000) // Show completed for 5s then reset
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [activeRideId, supabase])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,7 +103,6 @@ export default function CustomerMapClient() {
   const handleMapClick = async (lat: number, lng: number) => {
     if (!activePinMode) return
 
-    // Reverse geocode the dropped pin for a nicer label!
     let label = `Pinned Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
@@ -95,7 +117,7 @@ export default function CustomerMapClient() {
     } else {
       setDropoff({ lat, lng, label })
     }
-    setActivePinMode(null) // Turn off pin mode
+    setActivePinMode(null)
   }
 
   const requestRide = async () => {
@@ -108,20 +130,91 @@ export default function CustomerMapClient() {
       dropoff_location: `POINT(${dropoff.lng} ${dropoff.lat})`,
       pickup_address: pickup.label,
       dropoff_address: dropoff.label,
-      price: 10.00, // Hardcoded for demo
+      price: 10.00,
       status: 'pending'
-    })
+    }).select().single()
 
     if (error) {
       console.error("Failed to request ride", error)
       setRideStatus('idle')
+      alert("Failed to request ride.")
+    } else if (data) {
+      setActiveRideId(data.id)
     }
+  }
+  
+  const cancelRide = async () => {
+    if (!activeRideId) return
+    
+    await supabase.from('rides').update({ status: 'cancelled' }).eq('id', activeRideId)
+    setRideStatus('idle')
+    setActiveRideId(null)
   }
 
   // Create markers for the map
   const markers = []
   if (pickup) markers.push({ id: 'pickup', position: [pickup.lat, pickup.lng] as [number, number], label: 'Pickup: ' + pickup.label })
   if (dropoff) markers.push({ id: 'dropoff', position: [dropoff.lat, dropoff.lng] as [number, number], label: 'Dropoff: ' + dropoff.label })
+
+  const renderRideStatusUI = () => {
+    switch (rideStatus) {
+      case 'pending':
+        return (
+          <div className="text-center py-6">
+             <div className="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-cyan-500/30 relative">
+                <div className="absolute inset-0 rounded-full border-t-2 border-cyan-500 animate-spin"></div>
+                <span className="text-2xl">🚗</span>
+             </div>
+             <p className="text-zinc-400 text-sm font-medium mb-6">Waiting for a driver to accept...</p>
+             <button onClick={cancelRide} className="w-full bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 font-bold py-3 px-6 rounded-xl transition-all border border-red-500/20">
+                Cancel Request
+             </button>
+          </div>
+        )
+      case 'accepted':
+        return (
+          <div className="text-center py-6">
+             <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
+                <span className="text-3xl">🚙</span>
+             </div>
+             <h3 className="text-white font-extrabold text-xl mb-1">Driver is on the way!</h3>
+             <p className="text-zinc-400 text-sm font-medium mb-6">Your driver accepted the ride and is heading to you.</p>
+          </div>
+        )
+      case 'arrived':
+        return (
+          <div className="text-center py-6">
+             <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.3)] animate-pulse">
+                <span className="text-3xl">📍</span>
+             </div>
+             <h3 className="text-emerald-400 font-extrabold text-xl mb-1">Driver has arrived!</h3>
+             <p className="text-zinc-400 text-sm font-medium mb-6">Please meet your driver at the pickup location.</p>
+          </div>
+        )
+      case 'in_progress':
+        return (
+          <div className="text-center py-6">
+             <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-purple-500/30">
+                <span className="text-3xl">🛣️</span>
+             </div>
+             <h3 className="text-white font-extrabold text-xl mb-1">You are in transit</h3>
+             <p className="text-zinc-400 text-sm font-medium mb-6">Heading to your destination.</p>
+          </div>
+        )
+      case 'completed':
+        return (
+          <div className="text-center py-6">
+             <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_rgba(16,185,129,0.5)]">
+                <svg className="w-8 h-8 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+             </div>
+             <h3 className="text-emerald-400 font-extrabold text-2xl mb-1">You have arrived!</h3>
+             <p className="text-zinc-400 text-sm font-medium mb-6">Please pay RM 10.00 to your driver.</p>
+          </div>
+        )
+      default:
+        return null
+    }
+  }
 
   return (
     <div className="relative w-full h-full min-h-[500px] overflow-hidden z-0 flex flex-col items-center">
@@ -130,12 +223,13 @@ export default function CustomerMapClient() {
       <div className="absolute top-6 left-0 right-0 z-20 px-6 max-w-lg mx-auto w-full pointer-events-none">
          <div className="bg-black/60 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden group pointer-events-auto">
             <div className="absolute top-0 left-0 w-32 h-32 bg-cyan-500/10 blur-[50px] rounded-full transition-all group-hover:bg-cyan-500/20 pointer-events-none" />
-            <h2 className="text-white font-extrabold text-2xl mb-6 relative z-10">
-              {rideStatus === 'pending' ? 'Looking for Drivers...' : 'Where to?'}
-            </h2>
             
-            {rideStatus === 'idle' && (
+            {rideStatus !== 'idle' ? (
+              renderRideStatusUI()
+            ) : (
               <>
+                <h2 className="text-white font-extrabold text-2xl mb-6 relative z-10">Where to?</h2>
+                
                 {/* Pickup Toggle */}
                 <div className="relative mb-4 z-10">
                   <div className="flex items-center gap-2 mb-1">
@@ -205,19 +299,6 @@ export default function CustomerMapClient() {
                   </span>
                 </button>
               </>
-            )}
-
-            {rideStatus === 'pending' && (
-              <div className="text-center py-6">
-                 <div className="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-cyan-500/30 relative">
-                    <div className="absolute inset-0 rounded-full border-t-2 border-cyan-500 animate-spin"></div>
-                    <span className="text-2xl">🚗</span>
-                 </div>
-                 <p className="text-zinc-400 text-sm font-medium mb-6">Waiting for a driver to accept...</p>
-                 <button onClick={() => setRideStatus('idle')} className="w-full bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 font-bold py-3 px-6 rounded-xl transition-all border border-red-500/20">
-                    Cancel Request
-                 </button>
-              </div>
             )}
          </div>
       </div>
