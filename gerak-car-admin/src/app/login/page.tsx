@@ -58,8 +58,7 @@ export default function LoginPage() {
   }
 
   return (
-  return (
-    <div className="relative flex min-h-screen flex-col justify-center items-center overflow-hidden bg-zinc-50 dark:bg-black transition-colors duration-300">
+    <div className="relative flex min-[100dvh] flex-col justify-center items-center overflow-hidden bg-zinc-50 dark:bg-black transition-colors duration-300">
       
       {/* Theme Toggle Top Right */}
       <div className="absolute top-6 right-6 z-50 bg-white/80 dark:bg-black/50 backdrop-blur-md rounded-xl shadow-lg border border-zinc-200 dark:border-white/10 p-2">
@@ -79,62 +78,62 @@ export default function LoginPage() {
       </div>
 
       {/* Login Card */}
-      <div className="z-10 w-full max-w-md p-8 bg-white/60 dark:bg-black/40 backdrop-blur-3xl border border-zinc-200 dark:border-white/10 rounded-[2rem] shadow-xl dark:shadow-[0_0_50px_rgba(16,185,129,0.15)] mx-4 relative overflow-hidden">
+      <div className="z-10 w-full max-w-md p-5 sm:p-8 bg-white/60 dark:bg-black/40 backdrop-blur-3xl border border-zinc-200 dark:border-white/10 rounded-3xl sm:rounded-[2rem] shadow-xl dark:shadow-[0_0_50px_rgba(16,185,129,0.15)] mx-4 relative overflow-hidden">
         {/* Subtle glow effect inside the card */}
         <div className="absolute -top-32 -right-32 w-64 h-64 bg-emerald-500/10 dark:bg-emerald-500/20 blur-[100px] rounded-full pointer-events-none" />
         <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-cyan-500/10 dark:bg-cyan-500/20 blur-[100px] rounded-full pointer-events-none" />
 
         <div className="relative z-10">
-          <div className="flex justify-center mb-6">
-             <div className="w-20 h-20 bg-white dark:bg-black/50 p-2 rounded-2xl border border-zinc-200 dark:border-white/10 shadow-md dark:shadow-2xl flex items-center justify-center overflow-hidden relative">
+          <div className="flex justify-center mb-4 sm:mb-6">
+             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white dark:bg-black/50 p-2 rounded-2xl border border-zinc-200 dark:border-white/10 shadow-md dark:shadow-2xl flex items-center justify-center overflow-hidden relative">
                 <Image src="/logo.png" alt="Gerak Car Logo" fill className="object-cover" />
              </div>
           </div>
           
-          <h2 className="text-3xl font-extrabold text-center text-black dark:text-white mb-2 tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-center text-black dark:text-white mb-1 sm:mb-2 tracking-tight">
             Gerak Car
           </h2>
-          <p className="text-zinc-500 dark:text-zinc-400 text-center mb-8 text-sm font-medium">
+          <p className="text-zinc-500 dark:text-zinc-400 text-center mb-5 sm:mb-8 text-xs sm:text-sm font-medium">
             {isSignUp ? 'Create a new account' : 'Welcome back, sign in to continue'}
           </p>
           
           {/* Tabs */}
-          <div className="flex bg-zinc-100 dark:bg-black/60 p-1.5 rounded-xl mb-8 border border-zinc-200 dark:border-white/5 shadow-inner">
+          <div className="flex bg-zinc-100 dark:bg-black/60 p-1 rounded-xl mb-5 sm:mb-8 border border-zinc-200 dark:border-white/5 shadow-inner">
              <button 
                 type="button"
                 onClick={() => { setIsSignUp(false); setError(null); setSuccess(null); }}
-                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${!isSignUp ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-md' : 'text-zinc-500 dark:hover:text-zinc-300 hover:text-zinc-700'}`}
+                className={`flex-1 py-2 sm:py-2.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-300 ${!isSignUp ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-md' : 'text-zinc-500 dark:hover:text-zinc-300 hover:text-zinc-700'}`}
              >
                 Sign In
              </button>
              <button 
                 type="button"
                 onClick={() => { setIsSignUp(true); setError(null); setSuccess(null); }}
-                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${isSignUp ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-md' : 'text-zinc-500 dark:hover:text-zinc-300 hover:text-zinc-700'}`}
+                className={`flex-1 py-2 sm:py-2.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-300 ${isSignUp ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-md' : 'text-zinc-500 dark:hover:text-zinc-300 hover:text-zinc-700'}`}
              >
                 Sign Up
              </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             <div>
-              <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2 ml-1">Email</label>
+              <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 sm:mb-2 ml-1">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-zinc-50 dark:bg-black/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-black dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all shadow-inner"
+                className="w-full bg-zinc-50 dark:bg-black/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 sm:py-3.5 text-black dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all shadow-inner text-sm"
                 placeholder="student@example.com"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2 ml-1">Password</label>
+              <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 sm:mb-2 ml-1">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-zinc-50 dark:bg-black/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-black dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all shadow-inner"
+                className="w-full bg-zinc-50 dark:bg-black/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 sm:py-3.5 text-black dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all shadow-inner text-sm"
                 placeholder="••••••••"
                 required
               />
@@ -155,7 +154,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full relative group overflow-hidden bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-black font-extrabold py-3.5 px-4 rounded-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-2 shadow-lg dark:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+              className="w-full relative group overflow-hidden bg-black dark:bg-white hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-black font-extrabold py-3 sm:py-3.5 px-4 rounded-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-2 shadow-lg dark:shadow-[0_0_20px_rgba(255,255,255,0.1)] text-xs sm:text-sm"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 to-cyan-400/20 opacity-0 group-hover:opacity-100 transition-opacity" />
               <span className="relative z-10 flex items-center justify-center gap-2 tracking-wide">
