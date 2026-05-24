@@ -118,121 +118,134 @@ export default function DriverMapClient() {
   }
 
   return (
-    <div className="relative w-full h-[calc(100vh-80px)] overflow-hidden flex flex-col bg-black">
+    <div className="relative w-full h-[calc(100vh-80px)] md:h-screen overflow-hidden flex flex-col bg-[#1c1c1c] font-sans">
       
       {/* 100% Full Screen Map */}
       <div className="absolute inset-0 w-full h-full z-0">
         <InteractiveMap userLocation={location} markers={markers} />
       </div>
 
-      {/* Floating Status UI (When Offline/Online without Ride) */}
-      {!incomingRide && (
-        <div className="absolute bottom-10 left-0 right-0 z-20 px-6 flex justify-center pointer-events-none">
-          <button 
-            onClick={() => setIsOnline(!isOnline)}
-            className={`pointer-events-auto px-10 py-5 rounded-full font-extrabold text-xl tracking-wider shadow-2xl transition-all border w-full max-w-sm ${
-              isOnline 
-                ? 'bg-emerald-500 text-black hover:bg-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.5)] border-emerald-400' 
-                : 'bg-zinc-900 border-white/10 text-white hover:bg-zinc-800'
-            }`}
-          >
-            {isOnline ? '🟢 YOU ARE ONLINE' : 'GO ONLINE'}
-          </button>
-        </div>
-      )}
+      {/* Floating Action Buttons (Right Side) */}
+      <div className="absolute right-4 bottom-[280px] z-10 flex flex-col gap-3 pointer-events-none">
+         <button className="w-12 h-12 bg-[#2a2a2a] rounded-full flex items-center justify-center shadow-lg border border-white/10 pointer-events-auto text-white hover:bg-[#333] transition-colors">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+         </button>
+         <button className="w-12 h-12 bg-[#2a2a2a] rounded-full flex items-center justify-center shadow-lg border border-white/10 pointer-events-auto text-white hover:bg-[#333] transition-colors">
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L21 21l-9-4-9 4 9-19z"/></svg>
+         </button>
+         <button className="w-12 h-12 bg-[#2a2a2a] rounded-full flex items-center justify-center shadow-lg border border-white/10 pointer-events-auto text-white hover:bg-[#333] transition-colors">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+         </button>
+      </div>
 
-      {/* Incoming / Active Ride Bottom Sheet */}
-      {incomingRide && (
-        <div className="absolute bottom-0 left-0 right-0 z-30 w-full pointer-events-none flex flex-col items-center">
-          <div className="w-full max-w-lg bg-zinc-950 shadow-[0_-20px_40px_rgba(0,0,0,0.6)] pointer-events-auto flex flex-col p-6 pb-8 transition-transform duration-300 rounded-t-[32px] border-t border-l border-r border-white/5">
-            {/* Grab-style Handle bar */}
-            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-6"></div>
-
-            {/* HEADER */}
+      {/* BOTTOM SECTION */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col pointer-events-none">
+        
+        {/* Active Ride Popup (Overlays everything if there is a ride) */}
+        {incomingRide && (
+          <div className="w-full bg-[#242424] pointer-events-auto flex flex-col p-6 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/10 mb-4 mx-2">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-white font-extrabold text-2xl flex items-center gap-3">
-                {incomingRide.status === 'pending' && (
-                  <>
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                    </span>
-                    New Request
-                  </>
-                )}
+              <h3 className="text-white font-bold text-xl flex items-center gap-3">
+                {incomingRide.status === 'pending' && <><span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span> New Request</>}
                 {incomingRide.status === 'accepted' && 'En route to pickup'}
                 {incomingRide.status === 'arrived' && 'Waiting for customer'}
                 {incomingRide.status === 'in_progress' && 'Driving to dropoff'}
                 {incomingRide.status === 'completed' && 'Trip Completed!'}
               </h3>
-              <span className="bg-emerald-500/10 text-emerald-400 text-sm font-bold px-4 py-2 rounded-xl border border-emerald-500/20">
-                RM {incomingRide.price}
-              </span>
+              <span className="text-emerald-400 font-bold text-lg">RM {incomingRide.price}</span>
             </div>
 
-            {/* ROUTE DISPLAY */}
-            <div className="relative bg-zinc-900 border border-white/10 rounded-3xl p-4 mb-6 shadow-inner">
-               <div className="absolute left-7 top-[34px] bottom-[34px] w-0.5 bg-white/10"></div>
-               
-               <div className="flex items-center gap-4 mb-4">
-                  <div className="w-6 h-6 flex items-center justify-center relative z-10">
-                     <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                  </div>
-                  <div className="flex-1 text-sm font-medium text-white truncate">
-                     {incomingRide.pickup_address}
-                  </div>
+            <div className="bg-[#1c1c1c] rounded-2xl p-4 mb-6">
+               <div className="flex items-center gap-4 mb-3">
+                  <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
+                  <div className="flex-1 text-sm text-white truncate">{incomingRide.pickup_address}</div>
                </div>
-
-               <div className="h-px bg-white/5 ml-10 mb-4"></div>
-
                <div className="flex items-center gap-4">
-                  <div className="w-6 h-6 flex items-center justify-center relative z-10 bg-zinc-900">
-                     <div className="w-2 h-2 bg-blue-500 rounded-sm"></div>
-                  </div>
-                  <div className="flex-1 text-sm font-medium text-white truncate">
-                     {incomingRide.dropoff_address}
-                  </div>
+                  <div className="w-2.5 h-2.5 bg-blue-500 rounded-sm"></div>
+                  <div className="flex-1 text-sm text-white truncate">{incomingRide.dropoff_address}</div>
                </div>
             </div>
 
-            {/* ACTION BUTTONS */}
             {incomingRide.status === 'pending' && (
               <div className="flex gap-4">
-                <button onClick={() => setIncomingRide(null)} className="flex-[0.5] bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-5 rounded-2xl transition-all">
-                  DECLINE
-                </button>
-                <button onClick={() => updateRideStatus('accepted')} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-5 rounded-2xl transition-all shadow-lg text-lg">
-                  ACCEPT RIDE
-                </button>
+                <button onClick={() => setIncomingRide(null)} className="flex-1 bg-[#333] text-white font-bold py-4 rounded-xl">Decline</button>
+                <button onClick={() => updateRideStatus('accepted')} className="flex-1 bg-emerald-600 text-white font-bold py-4 rounded-xl shadow-lg">Accept</button>
               </div>
             )}
-            
-            {incomingRide.status === 'accepted' && (
-              <button onClick={() => updateRideStatus('arrived')} className="w-full bg-blue-500 hover:bg-blue-400 text-white font-extrabold py-5 rounded-2xl transition-all shadow-lg text-lg">
-                I HAVE ARRIVED
-              </button>
-            )}
-
-            {incomingRide.status === 'arrived' && (
-              <button onClick={() => updateRideStatus('in_progress')} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-5 rounded-2xl transition-all shadow-lg text-lg">
-                START TRIP
-              </button>
-            )}
-
-            {incomingRide.status === 'in_progress' && (
-              <button onClick={() => updateRideStatus('completed')} className="w-full bg-red-500 hover:bg-red-400 text-white font-extrabold py-5 rounded-2xl transition-all shadow-lg text-lg">
-                COMPLETE TRIP
-              </button>
-            )}
-            
-            {incomingRide.status === 'completed' && (
-              <div className="text-center py-4">
-                <p className="text-zinc-400 font-medium">Returning to map...</p>
-              </div>
-            )}
+            {incomingRide.status === 'accepted' && <button onClick={() => updateRideStatus('arrived')} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl">I Have Arrived</button>}
+            {incomingRide.status === 'arrived' && <button onClick={() => updateRideStatus('in_progress')} className="w-full bg-emerald-600 text-white font-bold py-4 rounded-xl">Start Trip</button>}
+            {incomingRide.status === 'in_progress' && <button onClick={() => updateRideStatus('completed')} className="w-full bg-red-600 text-white font-bold py-4 rounded-xl">Complete Trip</button>}
           </div>
+        )}
+
+        {/* Offline/Online Default View */}
+        {!incomingRide && (
+          <>
+            {/* Go Online Pill */}
+            <div className="flex justify-center -mb-6 relative z-30">
+               <button 
+                  onClick={() => setIsOnline(!isOnline)}
+                  className={`pointer-events-auto px-8 py-3.5 rounded-full font-bold text-lg flex items-center gap-3 shadow-2xl transition-colors border-2 ${
+                    isOnline ? 'bg-[#00B14F] text-white border-[#00B14F] hover:bg-[#009b44]' : 'bg-[#1c1c1c] text-white border-transparent hover:bg-[#2a2a2a]'
+                  }`}
+               >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  {isOnline ? 'Go Offline' : 'Go Online'}
+               </button>
+            </div>
+
+            {/* Status Sheet */}
+            <div className="bg-[#242424] pt-10 pb-6 px-4 rounded-t-3xl pointer-events-auto flex flex-col border-t border-white/5">
+               {/* Status Bar */}
+               <div className="bg-[#1c1c1c] rounded-xl p-4 flex items-center gap-3 mb-6">
+                  <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-[#00B14F]' : 'bg-[#FF5A5F]'}`}></div>
+                  <span className="text-white font-medium text-[15px]">{isOnline ? "You're online. Finding rides..." : "You're offline."}</span>
+               </div>
+
+               {/* Quick Actions */}
+               <div className="flex justify-center gap-12 mb-4">
+                  <div className="flex flex-col items-center gap-2 cursor-pointer group">
+                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center group-hover:bg-zinc-200 transition-colors shadow-sm">
+                        <svg className="w-8 h-8 text-[#006633]" fill="currentColor" viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+                     </div>
+                     <span className="text-zinc-300 text-xs font-medium text-center leading-tight">Service<br/>Types</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 cursor-pointer group">
+                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center group-hover:bg-zinc-200 transition-colors shadow-sm">
+                        <svg className="w-7 h-7 text-[#006633]" fill="currentColor" viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.5 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+                     </div>
+                     <span className="text-zinc-300 text-xs font-medium text-center leading-tight">Diagnostic</span>
+                  </div>
+               </div>
+            </div>
+          </>
+        )}
+
+        {/* Bottom Navigation Bar */}
+        <div className="bg-[#151515] h-16 flex items-center justify-around pointer-events-auto border-t border-white/5 pb-safe">
+           <button className="flex flex-col items-center gap-1 text-[#00B14F]">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+              <span className="text-[10px] font-medium">Home</span>
+           </button>
+           <button className="flex flex-col items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+              <span className="text-[10px] font-medium">Earnings</span>
+           </button>
+           <button className="flex flex-col items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors relative">
+              <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#FF5A5F] rounded-full border-2 border-[#151515]"></div>
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+              <span className="text-[10px] font-medium">Inbox</span>
+           </button>
+           <button className="flex flex-col items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span className="text-[10px] font-medium">Planner</span>
+           </button>
+           <button className="flex flex-col items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              <span className="text-[10px] font-medium">Profile</span>
+           </button>
         </div>
-      )}
+      </div>
     </div>
   )
 }
