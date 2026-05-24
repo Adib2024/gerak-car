@@ -33,12 +33,12 @@ export default async function Dashboard() {
 
   if (profile?.role !== 'admin') {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
-        <div className="bg-black/50 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-8 max-w-md text-center shadow-[0_0_50px_rgba(255,0,0,0.15)] relative overflow-hidden">
-           <h1 className="text-2xl font-extrabold text-white mb-2">Access Denied</h1>
-           <p className="text-zinc-400 mb-8 font-medium">You do not have administrative privileges to view this portal.</p>
+      <div className="min-h-screen bg-zinc-50 dark:bg-black flex items-center justify-center p-4 transition-colors duration-300">
+        <div className="bg-white/80 dark:bg-black/50 backdrop-blur-2xl border border-zinc-200 dark:border-white/10 rounded-[2rem] p-8 max-w-md text-center shadow-xl dark:shadow-[0_0_50px_rgba(255,0,0,0.15)] relative overflow-hidden">
+           <h1 className="text-2xl font-extrabold text-black dark:text-white mb-2">Access Denied</h1>
+           <p className="text-zinc-500 dark:text-zinc-400 mb-8 font-medium">You do not have administrative privileges to view this portal.</p>
            <form action="/auth/signout" method="post">
-              <button className="bg-red-500 hover:bg-red-400 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg w-full">
+              <button className="bg-red-500 hover:bg-red-600 dark:hover:bg-red-400 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg w-full">
                 Sign Out
               </button>
            </form>
