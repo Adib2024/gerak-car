@@ -118,7 +118,7 @@ export default function DriverMapClient() {
   }
 
   return (
-    <div className="relative w-full h-[calc(100vh-80px)] md:h-screen overflow-hidden flex flex-col bg-[#1c1c1c] font-sans">
+    <div className="relative w-full h-full overflow-hidden flex flex-col bg-[#1c1c1c] font-sans">
       
       {/* 100% Full Screen Map */}
       <div className="absolute inset-0 w-full h-full z-0">

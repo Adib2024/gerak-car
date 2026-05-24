@@ -154,7 +154,7 @@ export default function CustomerMapClient() {
   if (dropoff) markers.push({ id: 'dropoff', position: [dropoff.lat, dropoff.lng] as [number, number], label: 'Dropoff: ' + dropoff.label })
 
   return (
-    <div className="relative w-full h-[calc(100vh-80px)] overflow-hidden flex flex-col bg-black">
+    <div className="relative w-full h-full overflow-hidden flex flex-col bg-black">
       
       {/* 100% Full Screen Map */}
       <div className={`absolute inset-0 w-full h-full z-0 ${activePinMode ? 'cursor-crosshair' : ''}`}>
