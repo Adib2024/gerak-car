@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -27,6 +27,16 @@ function MapRecenter({ center }: { center: [number, number] | null }) {
   return null
 }
 
+// Helper component to capture map clicks
+function MapClickHandler({ onClick }: { onClick?: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      if (onClick) onClick(e.latlng.lat, e.latlng.lng)
+    }
+  })
+  return null
+}
+
 interface MapProps {
   userLocation: [number, number] | null
   markers?: Array<{
@@ -34,12 +44,13 @@ interface MapProps {
     position: [number, number]
     label: string
   }>
+  onMapClick?: (lat: number, lng: number) => void
 }
 
 // Default center: UMPSA Gambang
 const DEFAULT_CENTER: [number, number] = [3.7176, 103.1119]
 
-export default function InteractiveMap({ userLocation, markers = [] }: MapProps) {
+export default function InteractiveMap({ userLocation, markers = [], onMapClick }: MapProps) {
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER)
 
   useEffect(() => {
@@ -62,6 +73,7 @@ export default function InteractiveMap({ userLocation, markers = [] }: MapProps)
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
         
+        <MapClickHandler onClick={onMapClick} />
         <MapRecenter center={userLocation} />
 
         {userLocation && (

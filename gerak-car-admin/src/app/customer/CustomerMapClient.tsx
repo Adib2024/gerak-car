@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
+import { createClient } from '@/utils/supabase/client'
 
 // Dynamically import the map so it ONLY renders on the client side
 const InteractiveMap = dynamic(() => import('@/components/Map'), { 
@@ -12,7 +13,7 @@ const InteractiveMap = dynamic(() => import('@/components/Map'), {
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       </svg>
-      <p className="text-zinc-400 font-bold tracking-wide">Acquiring GPS Signal...</p>
+      <p className="text-zinc-400 font-bold tracking-wide">Initializing Map...</p>
     </div>
   )
 })
@@ -25,23 +26,40 @@ interface NominatimResult {
 }
 
 export default function CustomerMapClient() {
-  const [location, setLocation] = useState<[number, number] | null>(null)
+  const supabase = createClient()
+  const [userId, setUserId] = useState<string | null>(null)
+  
+  // Locations
+  const [myGpsLocation, setMyGpsLocation] = useState<[number, number] | null>(null)
+  const [pickup, setPickup] = useState<{lat: number, lng: number, label: string} | null>(null)
+  const [dropoff, setDropoff] = useState<{lat: number, lng: number, label: string} | null>(null)
+  
+  // UI State
+  const [activePinMode, setActivePinMode] = useState<'pickup' | 'dropoff' | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<NominatimResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [selectedDestination, setSelectedDestination] = useState<NominatimResult | null>(null)
+  const [rideStatus, setRideStatus] = useState<'idle' | 'pending' | 'accepted'>('idle')
 
   useEffect(() => {
+    // Get user session
+    supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user?.id || null))
+
     if (navigator.geolocation) {
-      // Use watchPosition for real-time tracking
+      // Use watchPosition for real-time tracking of MY location
       const watchId = navigator.geolocation.watchPosition(
-        (position) => setLocation([position.coords.latitude, position.coords.longitude]),
+        (position) => {
+          const coords: [number, number] = [position.coords.latitude, position.coords.longitude]
+          setMyGpsLocation(coords)
+          // Default pickup to GPS if not set
+          setPickup((prev) => prev || { lat: coords[0], lng: coords[1], label: "My GPS Location" })
+        },
         (err) => console.error("Location error:", err),
         { enableHighAccuracy: true }
       )
       return () => navigator.geolocation.clearWatch(watchId)
     }
-  }, [])
+  }, [supabase.auth])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,7 +67,6 @@ export default function CustomerMapClient() {
 
     setIsSearching(true)
     try {
-      // Search Nominatim for places within Malaysia
       const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=5&countrycodes=my`)
       const data = await res.json()
       setSearchResults(data)
@@ -60,15 +77,51 @@ export default function CustomerMapClient() {
     }
   }
 
+  const handleMapClick = async (lat: number, lng: number) => {
+    if (!activePinMode) return
+
+    // Reverse geocode the dropped pin for a nicer label!
+    let label = `Pinned Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
+      const data = await res.json()
+      if (data && data.display_name) {
+        label = data.display_name.split(',')[0]
+      }
+    } catch (e) {}
+
+    if (activePinMode === 'pickup') {
+      setPickup({ lat, lng, label })
+    } else {
+      setDropoff({ lat, lng, label })
+    }
+    setActivePinMode(null) // Turn off pin mode
+  }
+
+  const requestRide = async () => {
+    if (!pickup || !dropoff || !userId) return
+    setRideStatus('pending')
+
+    const { data, error } = await supabase.from('rides').insert({
+      customer_id: userId,
+      pickup_location: `POINT(${pickup.lng} ${pickup.lat})`,
+      dropoff_location: `POINT(${dropoff.lng} ${dropoff.lat})`,
+      pickup_address: pickup.label,
+      dropoff_address: dropoff.label,
+      price: 10.00, // Hardcoded for demo
+      status: 'pending'
+    })
+
+    if (error) {
+      console.error("Failed to request ride", error)
+      setRideStatus('idle')
+    }
+  }
+
   // Create markers for the map
   const markers = []
-  if (selectedDestination) {
-    markers.push({
-      id: 'dropoff',
-      position: [parseFloat(selectedDestination.lat), parseFloat(selectedDestination.lon)] as [number, number],
-      label: 'Destination: ' + selectedDestination.display_name.split(',')[0]
-    })
-  }
+  if (pickup) markers.push({ id: 'pickup', position: [pickup.lat, pickup.lng] as [number, number], label: 'Pickup: ' + pickup.label })
+  if (dropoff) markers.push({ id: 'dropoff', position: [dropoff.lat, dropoff.lng] as [number, number], label: 'Dropoff: ' + dropoff.label })
 
   return (
     <div className="relative w-full h-full min-h-[500px] overflow-hidden z-0 flex flex-col items-center">
@@ -77,73 +130,104 @@ export default function CustomerMapClient() {
       <div className="absolute top-6 left-0 right-0 z-20 px-6 max-w-lg mx-auto w-full pointer-events-none">
          <div className="bg-black/60 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden group pointer-events-auto">
             <div className="absolute top-0 left-0 w-32 h-32 bg-cyan-500/10 blur-[50px] rounded-full transition-all group-hover:bg-cyan-500/20 pointer-events-none" />
-            <h2 className="text-white font-extrabold text-2xl mb-6 relative z-10">Where to?</h2>
+            <h2 className="text-white font-extrabold text-2xl mb-6 relative z-10">
+              {rideStatus === 'pending' ? 'Looking for Drivers...' : 'Where to?'}
+            </h2>
             
-            {/* Pickup Input (Current Location) */}
-            <div className="relative mb-4 z-10">
-               <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                  <div className="w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-pulse"></div>
-               </div>
-               <div className="w-full bg-black/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-emerald-400 text-sm font-bold shadow-inner">
-                  {location ? "My Current GPS Location" : "Acquiring GPS..."}
-               </div>
-            </div>
+            {rideStatus === 'idle' && (
+              <>
+                {/* Pickup Toggle */}
+                <div className="relative mb-4 z-10">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-zinc-400 uppercase">Pickup Location</span>
+                    {activePinMode === 'pickup' && <span className="text-xs text-emerald-400 font-bold animate-pulse">(Click map to drop pin)</span>}
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="w-full bg-black/50 border border-white/10 rounded-2xl pl-4 pr-4 py-4 text-emerald-400 text-sm font-bold shadow-inner truncate cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setActivePinMode(activePinMode === 'pickup' ? null : 'pickup')}>
+                        {pickup ? pickup.label : "Tap to drop pin on map"}
+                    </div>
+                  </div>
+                </div>
 
-            {/* Dropoff Input */}
-            <form onSubmit={handleSearch} className="relative mb-4 z-10 flex gap-2">
-               <div className="relative flex-1">
-                 <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
-                    <div className="w-3 h-3 bg-cyan-500 rounded-sm shadow-[0_0_10px_rgba(6,182,212,0.5)]"></div>
+                {/* Dropoff Toggle */}
+                <div className="relative mb-6 z-10">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-zinc-400 uppercase">Dropoff Location</span>
+                    {activePinMode === 'dropoff' && <span className="text-xs text-cyan-400 font-bold animate-pulse">(Click map to drop pin)</span>}
+                  </div>
+                  <form onSubmit={handleSearch} className="flex gap-2 mb-2">
+                    <input 
+                        type="text" 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search or drop pin" 
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl pl-4 pr-4 py-4 text-white text-sm font-medium placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all shadow-inner relative z-10"
+                    />
+                    <button type="submit" disabled={isSearching} className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-2xl px-4 transition-all disabled:opacity-50 text-sm">
+                      🔍
+                    </button>
+                    <button type="button" onClick={() => setActivePinMode(activePinMode === 'dropoff' ? null : 'dropoff')} className={`font-bold rounded-2xl px-4 transition-all text-sm border ${activePinMode === 'dropoff' ? 'bg-cyan-500 text-black border-cyan-500' : 'bg-transparent border-white/10 text-zinc-400 hover:bg-white/5'}`}>
+                      📍
+                    </button>
+                  </form>
+                  {dropoff && <p className="text-cyan-400 text-xs font-bold truncate pl-2">Selected: {dropoff.label}</p>}
+                </div>
+                
+                {/* Search Results */}
+                {searchResults.length > 0 && (
+                  <div className="bg-black/80 border border-white/10 rounded-2xl mb-4 max-h-40 overflow-y-auto z-10 relative">
+                    {searchResults.map((res) => (
+                      <button 
+                        key={res.place_id}
+                        onClick={() => {
+                          setDropoff({ lat: parseFloat(res.lat), lng: parseFloat(res.lon), label: res.display_name.split(',')[0] })
+                          setSearchResults([])
+                          setSearchQuery('')
+                        }}
+                        className="w-full text-left px-4 py-3 border-b border-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <p className="text-white text-sm font-bold truncate">{res.display_name.split(',')[0]}</p>
+                        <p className="text-zinc-400 text-xs truncate">{res.display_name}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Find Ride Button */}
+                <button 
+                  onClick={requestRide}
+                  disabled={!pickup || !dropoff || !userId}
+                  className="w-full relative group/btn overflow-hidden bg-white hover:bg-zinc-200 text-black font-extrabold py-4 px-6 rounded-2xl transition-all shadow-[0_0_30px_rgba(255,255,255,0.1)] text-lg tracking-wide border border-white/20 z-10 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/30 to-emerald-400/30 opacity-0 group-hover/btn:opacity-100 transition-opacity" />
+                  <span className="relative z-10 flex items-center justify-center gap-3">
+                      REQUEST RIDE NOW
+                  </span>
+                </button>
+              </>
+            )}
+
+            {rideStatus === 'pending' && (
+              <div className="text-center py-6">
+                 <div className="w-16 h-16 bg-cyan-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-cyan-500/30 relative">
+                    <div className="absolute inset-0 rounded-full border-t-2 border-cyan-500 animate-spin"></div>
+                    <span className="text-2xl">🚗</span>
                  </div>
-                 <input 
-                    type="text" 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search destination (e.g., Starbucks)" 
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white text-sm font-medium placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 transition-all shadow-inner relative z-10"
-                 />
-                 {/* Decorative connecting line */}
-                 <div className="absolute left-[21px] -top-[1.2rem] w-0.5 h-6 border-l-2 border-dashed border-white/20 z-0"></div>
-               </div>
-               <button type="submit" disabled={isSearching} className="bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold rounded-2xl px-4 transition-all disabled:opacity-50">
-                 {isSearching ? '...' : 'Search'}
-               </button>
-            </form>
-
-            {/* Search Results */}
-            {searchResults.length > 0 && !selectedDestination && (
-              <div className="bg-black/80 border border-white/10 rounded-2xl mb-4 max-h-40 overflow-y-auto z-10 relative">
-                {searchResults.map((res) => (
-                  <button 
-                    key={res.place_id}
-                    onClick={() => {
-                      setSelectedDestination(res)
-                      setSearchResults([])
-                    }}
-                    className="w-full text-left px-4 py-3 border-b border-white/5 hover:bg-white/10 transition-colors"
-                  >
-                    <p className="text-white text-sm font-bold truncate">{res.display_name.split(',')[0]}</p>
-                    <p className="text-zinc-400 text-xs truncate">{res.display_name}</p>
-                  </button>
-                ))}
+                 <p className="text-zinc-400 text-sm font-medium mb-6">Waiting for a driver to accept...</p>
+                 <button onClick={() => setRideStatus('idle')} className="w-full bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 font-bold py-3 px-6 rounded-xl transition-all border border-red-500/20">
+                    Cancel Request
+                 </button>
               </div>
             )}
-            
-            {/* Find Ride Button */}
-            <button 
-              disabled={!location || !selectedDestination}
-              className="w-full relative group/btn overflow-hidden bg-white hover:bg-zinc-200 text-black font-extrabold py-4 px-6 rounded-2xl transition-all shadow-[0_0_30px_rgba(255,255,255,0.1)] text-lg tracking-wide border border-white/20 z-10 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-               <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/30 to-emerald-400/30 opacity-0 group-hover/btn:opacity-100 transition-opacity" />
-               <span className="relative z-10 flex items-center justify-center gap-3">
-                  {selectedDestination ? 'REQUEST RIDE NOW' : 'SELECT DESTINATION'}
-               </span>
-            </button>
          </div>
       </div>
 
-      <div className="absolute inset-0 w-full h-full z-0">
-        <InteractiveMap userLocation={location} markers={markers} />
+      <div className={`absolute inset-0 w-full h-full z-0 ${activePinMode ? 'cursor-crosshair' : ''}`}>
+        <InteractiveMap 
+          userLocation={myGpsLocation} 
+          markers={markers} 
+          onMapClick={handleMapClick}
+        />
       </div>
     </div>
   )
