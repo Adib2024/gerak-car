@@ -55,8 +55,23 @@ export default function DriverMapClient() {
   useEffect(() => {
     if (!isOnline) {
       setIncomingRide((prev: any) => (prev && prev.status !== 'pending' ? prev : null))
+      
+      // If they go offline, mark them inactive in the DB
+      if (location) {
+        supabase.rpc('update_driver_location', { p_lat: location[0], p_lng: location[1], p_is_active: false })
+      }
       return
     }
+
+    // When online, ping the DB every 10 seconds with the current location
+    if (location) {
+       supabase.rpc('update_driver_location', { p_lat: location[0], p_lng: location[1], p_is_active: true })
+    }
+    const locationPing = setInterval(() => {
+       if (location) {
+         supabase.rpc('update_driver_location', { p_lat: location[0], p_lng: location[1], p_is_active: true })
+       }
+    }, 10000)
 
     const channel = supabase.channel('driver-rides')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: "status=eq.pending" }, (payload) => {
@@ -65,28 +80,44 @@ export default function DriverMapClient() {
       .subscribe()
 
     return () => {
+      clearInterval(locationPing)
       supabase.removeChannel(channel)
     }
-  }, [isOnline, supabase])
+  }, [isOnline, location, supabase])
 
   const updateRideStatus = async (newStatus: string) => {
     if (!incomingRide || !userId) return
     
     const previousStatus = incomingRide.status
-    setIncomingRide({ ...incomingRide, status: newStatus })
 
-    if (newStatus === 'accepted') setIsOnline(false)
+    if (newStatus === 'accepted') {
+      // Use the RPC to safely handle race conditions
+      const { data, error } = await supabase.rpc('accept_ride', { p_ride_id: incomingRide.id })
+      
+      if (error || !data || !data[0].success) {
+        console.error("Failed to accept ride:", error || data)
+        alert(data?.[0]?.message || "This order has already been taken by another driver.")
+        setIncomingRide(null)
+        return
+      }
+      
+      setIncomingRide({ ...incomingRide, status: newStatus })
+      setIsOnline(false)
+      return
+    }
+
+    // For other status updates (arrived, in_progress, completed)
+    setIncomingRide({ ...incomingRide, status: newStatus })
 
     const { error } = await supabase
       .from('rides')
-      .update(newStatus === 'accepted' ? { status: newStatus, driver_id: userId } : { status: newStatus })
+      .update({ status: newStatus })
       .eq('id', incomingRide.id)
       
     if (error) {
       console.error(`Failed to update ride to ${newStatus}`, error)
-      alert("Failed to update ride status. Someone else may have taken it.")
-      setIncomingRide(previousStatus === 'pending' ? null : { ...incomingRide, status: previousStatus })
-      if (newStatus === 'accepted') setIsOnline(true)
+      alert("Failed to update ride status.")
+      setIncomingRide({ ...incomingRide, status: previousStatus })
     }
     
     if (newStatus === 'completed') {

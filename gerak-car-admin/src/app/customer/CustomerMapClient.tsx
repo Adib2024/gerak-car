@@ -46,6 +46,8 @@ export default function CustomerMapClient() {
   const [activeRideId, setActiveRideId] = useState<string | null>(null)
   const [rideStatus, setRideStatus] = useState<'idle' | 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed'>('idle')
   const [selectedCar, setSelectedCar] = useState<'economy' | 'premium'>('economy')
+  const [calculatedFare, setCalculatedFare] = useState<number | null>(null)
+  const [driverLocations, setDriverLocations] = useState<any[]>([])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user?.id || null))
@@ -63,6 +65,43 @@ export default function CustomerMapClient() {
       return () => navigator.geolocation.clearWatch(watchId)
     }
   }, [supabase.auth])
+
+  // Fetch nearby drivers
+  useEffect(() => {
+    if (!myGpsLocation) return
+    const fetchDrivers = async () => {
+      const { data } = await supabase.rpc('get_nearby_drivers', {
+        p_lat: myGpsLocation[0],
+        p_lng: myGpsLocation[1],
+        p_radius_meters: 10000 // 10km radius
+      })
+      if (data) setDriverLocations(data)
+    }
+    
+    fetchDrivers()
+    const interval = setInterval(fetchDrivers, 5000) // Poll every 5s for smooth tracking
+    return () => clearInterval(interval)
+  }, [myGpsLocation, supabase])
+
+  // Calculate fare dynamically using PostGIS
+  useEffect(() => {
+    if (pickup && dropoff) {
+      const getFare = async () => {
+        const { data, error } = await supabase.rpc('calculate_fare', {
+          p_pickup_lat: pickup.lat,
+          p_pickup_lng: pickup.lng,
+          p_dropoff_lat: dropoff.lat,
+          p_dropoff_lng: dropoff.lng
+        })
+        if (data) {
+          setCalculatedFare(data)
+        }
+      }
+      getFare()
+    } else {
+      setCalculatedFare(null)
+    }
+  }, [pickup, dropoff, supabase])
 
   // Listen to ride updates
   useEffect(() => {
@@ -124,10 +163,10 @@ export default function CustomerMapClient() {
   }
 
   const requestRide = async () => {
-    if (!pickup || !dropoff || !userId) return
+    if (!pickup || !dropoff || !userId || !calculatedFare) return
     setRideStatus('pending')
 
-    const price = selectedCar === 'premium' ? 15.00 : 10.00
+    const finalPrice = selectedCar === 'premium' ? calculatedFare * 1.5 : calculatedFare
 
     const { data, error } = await supabase.from('rides').insert({
       customer_id: userId,
@@ -135,7 +174,7 @@ export default function CustomerMapClient() {
       dropoff_location: `POINT(${dropoff.lng} ${dropoff.lat})`,
       pickup_address: pickup.label,
       dropoff_address: dropoff.label,
-      price: price,
+      price: finalPrice,
       status: 'pending'
     }).select().single()
 
@@ -158,6 +197,11 @@ export default function CustomerMapClient() {
   const markers = []
   if (pickup) markers.push({ id: 'pickup', position: [pickup.lat, pickup.lng] as [number, number], label: 'Pickup: ' + pickup.label })
   if (dropoff) markers.push({ id: 'dropoff', position: [dropoff.lat, dropoff.lng] as [number, number], label: 'Dropoff: ' + dropoff.label })
+  
+  // Add driver markers
+  driverLocations.forEach(d => {
+    markers.push({ id: `driver_${d.driver_id}`, position: [d.lat, d.lng] as [number, number], label: '🚗' })
+  })
 
   const isRouteSelected = pickup && dropoff
 
@@ -301,7 +345,7 @@ export default function CustomerMapClient() {
                           <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                        </div>
                        <h3 className="text-black dark:text-white font-extrabold text-2xl mb-1">You have arrived</h3>
-                       <p className="text-[#00B14F] font-bold text-lg mb-6">RM {selectedCar === 'premium' ? '15.00' : '10.00'}</p>
+                       <p className="text-[#00B14F] font-bold text-lg mb-6">RM {calculatedFare ? (selectedCar === 'premium' ? calculatedFare * 1.5 : calculatedFare).toFixed(2) : '...'}</p>
                     </>
                  )}
               </div>
@@ -388,8 +432,10 @@ export default function CustomerMapClient() {
                             </div>
                          </div>
                          <div className="text-right">
-                            <h4 className="text-black dark:text-white font-extrabold text-lg">RM 10.00</h4>
-                            <p className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">3 mins away</p>
+                            <h4 className="text-black dark:text-white font-extrabold text-lg">
+                               {calculatedFare ? `RM ${calculatedFare.toFixed(2)}` : 'Calculating...'}
+                            </h4>
+                            <p className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">Fastest match</p>
                          </div>
                       </div>
 
@@ -405,8 +451,10 @@ export default function CustomerMapClient() {
                             </div>
                          </div>
                          <div className="text-right">
-                            <h4 className="text-black dark:text-white font-extrabold text-lg">RM 15.00</h4>
-                            <p className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">5 mins away</p>
+                            <h4 className="text-black dark:text-white font-extrabold text-lg">
+                               {calculatedFare ? `RM ${(calculatedFare * 1.5).toFixed(2)}` : 'Calculating...'}
+                            </h4>
+                            <p className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">Top rated drivers</p>
                          </div>
                       </div>
                    </div>
