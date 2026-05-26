@@ -1,26 +1,26 @@
 -- ====================================================================
--- GERAK CAR: POSTGIS GEOSPATIAL ENGINE & RIDE STATE MACHINE
+-- GERAK SUPER APP: POSTGIS GEOSPATIAL ENGINE & STATE MACHINE
 -- ====================================================================
 
 -- Ensure PostGIS is enabled
 CREATE EXTENSION IF NOT EXISTS postgis;
 
--- 1. UPDATE DRIVER LOCATION RPC
--- Allows a driver to update their location using simple lat/lng floats
-CREATE OR REPLACE FUNCTION update_driver_location(
+-- 1. UPDATE RUNNER LOCATION RPC
+-- Allows a runner to update their location using simple lat/lng floats
+CREATE OR REPLACE FUNCTION update_runner_location(
   p_lat DOUBLE PRECISION, 
   p_lng DOUBLE PRECISION,
   p_is_active BOOLEAN DEFAULT true
 ) RETURNS void AS $$
 BEGIN
-  INSERT INTO public.driver_locations (driver_id, location, is_active, updated_at)
+  INSERT INTO public.runner_locations (runner_id, location, is_active, updated_at)
   VALUES (
     auth.uid(), 
-    ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326), 
+    ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography, 
     p_is_active, 
     NOW()
   )
-  ON CONFLICT (driver_id) DO UPDATE SET 
+  ON CONFLICT (runner_id) DO UPDATE SET 
     location = EXCLUDED.location,
     is_active = EXCLUDED.is_active,
     updated_at = NOW();
@@ -28,15 +28,16 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 2. GET NEARBY DRIVERS RPC
--- Finds active drivers within a certain radius (meters)
-CREATE OR REPLACE FUNCTION get_nearby_drivers(
+-- 2. GET NEARBY RUNNERS RPC
+-- Finds active runners within a radius who have the required service role
+CREATE OR REPLACE FUNCTION get_nearby_runners(
   p_lat DOUBLE PRECISION, 
   p_lng DOUBLE PRECISION, 
+  p_service_role TEXT, -- e.g., 'driver', 'food_runner', 'jubah_runner'
   p_radius_meters DOUBLE PRECISION DEFAULT 5000
 ) 
 RETURNS TABLE (
-  driver_id UUID, 
+  runner_id UUID, 
   dist_meters DOUBLE PRECISION,
   lat DOUBLE PRECISION,
   lng DOUBLE PRECISION
@@ -44,15 +45,18 @@ RETURNS TABLE (
 BEGIN
   RETURN QUERY
   SELECT 
-    d.driver_id,
-    ST_Distance(d.location, ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)) AS dist_meters,
-    ST_Y(d.location::geometry) AS lat,
-    ST_X(d.location::geometry) AS lng
+    r.runner_id,
+    ST_Distance(r.location, ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography) AS dist_meters,
+    ST_Y(r.location::geometry) AS lat,
+    ST_X(r.location::geometry) AS lng
   FROM 
-    public.driver_locations d
+    public.runner_locations r
+  JOIN 
+    public.users u ON u.id = r.runner_id
   WHERE 
-    d.is_active = true 
-    AND ST_DWithin(d.location, ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326), p_radius_meters)
+    r.is_active = true 
+    AND p_service_role = ANY(u.roles)
+    AND ST_DWithin(r.location, ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography, p_radius_meters)
   ORDER BY 
     dist_meters ASC;
 END;
@@ -76,8 +80,8 @@ DECLARE
   total_fare DECIMAL(10,2);
 BEGIN
   dist_meters := ST_Distance(
-    ST_SetSRID(ST_MakePoint(p_pickup_lng, p_pickup_lat), 4326),
-    ST_SetSRID(ST_MakePoint(p_dropoff_lng, p_dropoff_lat), 4326)
+    ST_SetSRID(ST_MakePoint(p_pickup_lng, p_pickup_lat), 4326)::geography,
+    ST_SetSRID(ST_MakePoint(p_dropoff_lng, p_dropoff_lat), 4326)::geography
   );
   dist_km := dist_meters / 1000.0;
   total_fare := base_fare + (dist_km * per_km_rate);
@@ -92,42 +96,95 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 4. CONCURRENCY-SAFE RIDE ACCEPTANCE
--- Ensures only ONE driver can accept a specific pending ride, avoiding race conditions.
-CREATE OR REPLACE FUNCTION accept_ride(p_ride_id UUID)
-RETURNS TABLE (
-  success BOOLEAN,
-  message TEXT
-) AS $$
-DECLARE
-  v_driver_has_active_ride BOOLEAN;
-  v_ride_updated BOOLEAN := false;
-BEGIN
-  -- Check if the driver is already on an active ride
-  SELECT EXISTS (
-    SELECT 1 FROM public.rides 
-    WHERE driver_id = auth.uid() 
-    AND status IN ('accepted', 'in_progress')
-  ) INTO v_driver_has_active_ride;
+-- 4. CONCURRENCY-SAFE ACCEPTANCE RPCS
+-- Ensures only ONE runner can accept a specific pending order, avoiding race conditions.
 
-  IF v_driver_has_active_ride THEN
-    RETURN QUERY SELECT false, 'You already have an active ride.'::TEXT;
-    RETURN;
+-- A. ACCEPT RIDE
+CREATE OR REPLACE FUNCTION accept_ride(p_ride_id UUID)
+RETURNS TABLE (success BOOLEAN, message TEXT) AS $$
+DECLARE
+  v_has_active BOOLEAN;
+  v_updated BOOLEAN := false;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND 'driver' = ANY(roles)) THEN
+    RETURN QUERY SELECT false, 'Only authorized drivers can accept rides.'::TEXT; RETURN;
   END IF;
 
-  -- Attempt to claim the ride ONLY IF it is still pending
-  UPDATE public.rides 
-  SET 
-    driver_id = auth.uid(),
-    status = 'accepted'
-  WHERE 
-    id = p_ride_id AND status = 'pending'
-  RETURNING true INTO v_ride_updated;
+  SELECT EXISTS (
+    SELECT 1 FROM public.rides WHERE driver_id = auth.uid() AND status IN ('accepted', 'in_progress')
+  ) INTO v_has_active;
+  
+  IF v_has_active THEN
+    RETURN QUERY SELECT false, 'You already have an active ride.'::TEXT; RETURN;
+  END IF;
 
-  IF v_ride_updated THEN
+  UPDATE public.rides SET driver_id = auth.uid(), status = 'accepted'
+  WHERE id = p_ride_id AND status = 'pending' RETURNING true INTO v_updated;
+
+  IF v_updated THEN
     RETURN QUERY SELECT true, 'Ride accepted successfully.'::TEXT;
   ELSE
-    RETURN QUERY SELECT false, 'This order has already been taken by another driver or was cancelled.'::TEXT;
+    RETURN QUERY SELECT false, 'This order has already been taken or was cancelled.'::TEXT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- B. ACCEPT FOOD ORDER
+CREATE OR REPLACE FUNCTION accept_food_order(p_order_id UUID)
+RETURNS TABLE (success BOOLEAN, message TEXT) AS $$
+DECLARE
+  v_has_active BOOLEAN;
+  v_updated BOOLEAN := false;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND 'food_runner' = ANY(roles)) THEN
+    RETURN QUERY SELECT false, 'Only authorized food runners can accept food orders.'::TEXT; RETURN;
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM public.food_orders WHERE runner_id = auth.uid() AND status IN ('accepted', 'picked_up')
+  ) INTO v_has_active;
+  
+  IF v_has_active THEN
+    RETURN QUERY SELECT false, 'You already have an active food order.'::TEXT; RETURN;
+  END IF;
+
+  UPDATE public.food_orders SET runner_id = auth.uid(), status = 'accepted'
+  WHERE id = p_order_id AND status = 'pending' RETURNING true INTO v_updated;
+
+  IF v_updated THEN
+    RETURN QUERY SELECT true, 'Food order accepted successfully.'::TEXT;
+  ELSE
+    RETURN QUERY SELECT false, 'This order has already been taken or was cancelled.'::TEXT;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- C. ACCEPT JUBAH ORDER
+CREATE OR REPLACE FUNCTION accept_jubah_order(p_order_id UUID)
+RETURNS TABLE (success BOOLEAN, message TEXT) AS $$
+DECLARE
+  v_has_active BOOLEAN;
+  v_updated BOOLEAN := false;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND 'jubah_runner' = ANY(roles)) THEN
+    RETURN QUERY SELECT false, 'Only authorized jubah runners can accept jubah orders.'::TEXT; RETURN;
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM public.jubah_orders WHERE runner_id = auth.uid() AND status IN ('accepted', 'picked_up')
+  ) INTO v_has_active;
+  
+  IF v_has_active THEN
+    RETURN QUERY SELECT false, 'You already have an active jubah order.'::TEXT; RETURN;
+  END IF;
+
+  UPDATE public.jubah_orders SET runner_id = auth.uid(), status = 'accepted'
+  WHERE id = p_order_id AND status = 'pending' RETURNING true INTO v_updated;
+
+  IF v_updated THEN
+    RETURN QUERY SELECT true, 'Jubah order accepted successfully.'::TEXT;
+  ELSE
+    RETURN QUERY SELECT false, 'This order has already been taken or was cancelled.'::TEXT;
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
