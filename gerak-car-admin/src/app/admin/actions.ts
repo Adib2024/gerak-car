@@ -3,7 +3,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-export async function updateUserRole(userId: string, newRole: 'admin' | 'driver' | 'customer') {
+export async function updateUserRole(userId: string, newRoles: string[]) {
   const supabase = await createClient()
 
   // Verify the current user is an admin
@@ -16,18 +16,21 @@ export async function updateUserRole(userId: string, newRole: 'admin' | 'driver'
 
   const { data: profile } = await supabase
     .from('users')
-    .select('role')
+    .select('roles')
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
+  if (!profile?.roles?.includes('admin')) {
     return { success: false, error: 'Unauthorized: Admin access required.' }
   }
+
+  // Ensure 'customer' is always in the array so they don't get locked out
+  const finalRoles = Array.from(new Set([...newRoles, 'customer']))
 
   // Update the target user's role
   const { error } = await supabase
     .from('users')
-    .update({ role: newRole })
+    .update({ roles: finalRoles })
     .eq('id', userId)
 
   if (error) {

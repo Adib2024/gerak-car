@@ -31,7 +31,21 @@ export default async function Dashboard() {
     .order('created_at', { ascending: false })
     .limit(50)
 
-  if (profile?.role !== 'admin') {
+  // Fetch active rides
+  const { count: activeRides } = await supabase
+    .from('rides')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['pending', 'accepted', 'in_progress'])
+
+  // Fetch completed revenue (rides for now)
+  const { data: completedRides } = await supabase
+    .from('rides')
+    .select('price')
+    .eq('status', 'completed')
+  
+  const totalRevenue = completedRides?.reduce((sum, r) => sum + Number(r.price), 0) || 0
+
+  if (!profile?.roles?.includes('admin')) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-black flex items-center justify-center p-4 transition-colors duration-300">
         <div className="bg-white/80 dark:bg-black/50 backdrop-blur-2xl border border-zinc-200 dark:border-white/10 rounded-[2rem] p-8 max-w-md text-center shadow-xl dark:shadow-[0_0_50px_rgba(255,0,0,0.15)] relative overflow-hidden">
@@ -117,7 +131,7 @@ export default async function Dashboard() {
                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                     </div>
                  </div>
-                 <p className="text-4xl font-extrabold text-black dark:text-white relative z-10">0</p>
+                 <p className="text-4xl font-extrabold text-black dark:text-white relative z-10">{allUsers?.length || 0}</p>
                  <p className="text-sm text-zinc-500 mt-2 font-medium relative z-10">Registered accounts</p>
               </div>
               
@@ -130,7 +144,7 @@ export default async function Dashboard() {
                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     </div>
                  </div>
-                 <p className="text-4xl font-extrabold text-black dark:text-white relative z-10">0</p>
+                 <p className="text-4xl font-extrabold text-black dark:text-white relative z-10">{activeRides || 0}</p>
                  <p className="text-sm text-zinc-500 mt-2 font-medium relative z-10">Happening right now</p>
               </div>
               
@@ -143,7 +157,7 @@ export default async function Dashboard() {
                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
                  </div>
-                 <p className="text-4xl font-extrabold text-black dark:text-white relative z-10">RM 0.00</p>
+                 <p className="text-4xl font-extrabold text-black dark:text-white relative z-10">RM {totalRevenue.toFixed(2)}</p>
                  <p className="text-sm text-zinc-500 mt-2 font-medium relative z-10">All time platform</p>
               </div>
            </div>
@@ -155,6 +169,19 @@ export default async function Dashboard() {
                     <svg className="w-8 h-8 text-zinc-500 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                  </div>
                  <p className="text-zinc-600 dark:text-zinc-400 font-medium text-lg">No activity yet</p>
+                 <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                   {allUsers?.slice(0, 4).map((u: any) => (
+                     <div key={u.id} className="flex items-center gap-4 bg-white dark:bg-black/40 p-4 rounded-2xl border border-zinc-200 dark:border-white/5">
+                       <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-sm border border-emerald-100 dark:border-emerald-500/20">
+                          {u.email.charAt(0).toUpperCase()}
+                       </div>
+                       <div>
+                         <p className="text-black dark:text-white font-bold text-sm leading-tight">{u.email}</p>
+                         <p className="text-zinc-500 text-xs mt-1">Joined {new Date(u.created_at).toLocaleDateString()}</p>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
                  <p className="text-zinc-500 dark:text-zinc-600 text-sm mt-2">Things will appear here once users join.</p>
               </div>
            </div>
@@ -194,7 +221,7 @@ export default async function Dashboard() {
                                 {new Date(u.created_at).toLocaleDateString()}
                              </td>
                              <td className="py-4 pr-4">
-                                <RoleUpdater userId={u.id} currentRole={u.role} />
+                                <RoleUpdater userId={u.id} currentRoles={u.roles || []} />
                              </td>
                           </tr>
                        ))}
