@@ -54,7 +54,7 @@ export default function DriverMapClient() {
 
   useEffect(() => {
     if (!isOnline) {
-      setIncomingRide((prev: any) => (prev && prev.status !== 'pending' ? prev : null))
+      setIncomingRide((prev: any) => (prev && prev.status !== 'SEARCHING' ? prev : null))
       
       // If they go offline, mark them inactive in the DB
       if (location) {
@@ -74,7 +74,7 @@ export default function DriverMapClient() {
     }, 10000)
 
     const channel = supabase.channel('driver-rides')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: "status=eq.pending" }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: "status=eq.SEARCHING" }, (payload) => {
         setIncomingRide(payload.new)
       })
       .subscribe()
@@ -90,9 +90,9 @@ export default function DriverMapClient() {
     
     const previousStatus = incomingRide.status
 
-    if (newStatus === 'accepted') {
+    if (newStatus === 'ASSIGNED') {
       // Use the RPC to safely handle race conditions
-      const { data, error } = await supabase.rpc('accept_ride', { p_ride_id: incomingRide.id })
+      const { data, error } = await supabase.rpc('accept_order', { p_order_id: incomingRide.id })
       
       if (error || !data || !data[0].success) {
         console.error("Failed to accept ride:", error || data)
@@ -110,7 +110,7 @@ export default function DriverMapClient() {
     setIncomingRide({ ...incomingRide, status: newStatus })
 
     const { error } = await supabase
-      .from('rides')
+      .from('orders')
       .update({ status: newStatus })
       .eq('id', incomingRide.id)
       
@@ -120,7 +120,7 @@ export default function DriverMapClient() {
       setIncomingRide({ ...incomingRide, status: previousStatus })
     }
     
-    if (newStatus === 'completed') {
+    if (newStatus === 'COMPLETED') {
       setTimeout(() => {
         setIncomingRide(null)
         setIsOnline(true)
@@ -131,8 +131,8 @@ export default function DriverMapClient() {
   const markers = []
   if (incomingRide) {
     try {
-      const pickupMatch = incomingRide.pickup_location.match(/POINT\(([^ ]+) ([^)]+)\)/)
-      const dropoffMatch = incomingRide.dropoff_location.match(/POINT\(([^ ]+) ([^)]+)\)/)
+      const pickupMatch = incomingRide.pickup_coordinate.match(/POINT\(([^ ]+) ([^)]+)\)/)
+      const dropoffMatch = incomingRide.dropoff_coordinate.match(/POINT\(([^ ]+) ([^)]+)\)/)
       
       if (pickupMatch) {
         markers.push({
@@ -205,7 +205,7 @@ export default function DriverMapClient() {
             {activeTab === 'profile' && (
                <div className="flex flex-col gap-6">
                   <div className="bg-white dark:bg-[#242424] p-6 rounded-2xl border border-zinc-200 dark:border-white/5 shadow-lg flex items-center gap-4">
-                     <div className="w-16 h-16 bg-[#00B14F]/10 dark:bg-emerald-500/20 rounded-full flex items-center justify-center text-[#00B14F] dark:text-emerald-500">
+                     <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center text-black dark:text-white">
                         <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                      </div>
                      <div>
@@ -236,7 +236,7 @@ export default function DriverMapClient() {
             <div className="bg-white dark:bg-[#242424] border border-zinc-200 dark:border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl">
                <h3 className="text-black dark:text-white font-bold text-xl mb-4 capitalize">{activeModal.replace('_', ' ')}</h3>
                <p className="text-zinc-500 dark:text-zinc-400 mb-8">This feature is not available in the current beta version.</p>
-               <button onClick={() => setActiveModal(null)} className="w-full bg-[#00B14F] hover:bg-[#009b44] text-white font-bold py-3 rounded-xl transition-colors">
+               <button onClick={() => setActiveModal(null)} className="w-full bg-black dark:bg-white text-white dark:text-black font-bold py-3 rounded-xl transition-colors shadow-sm">
                   Close
                </button>
             </div>
@@ -251,35 +251,35 @@ export default function DriverMapClient() {
           <div className="w-full bg-white dark:bg-[#242424] pointer-events-auto flex flex-col p-6 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-zinc-200 dark:border-white/10 mb-4 mx-2">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-black dark:text-white font-bold text-xl flex items-center gap-3">
-                {incomingRide.status === 'pending' && <><span className="w-3 h-3 rounded-full bg-[#00B14F] animate-pulse"></span> New Request</>}
-                {incomingRide.status === 'accepted' && 'En route to pickup'}
-                {incomingRide.status === 'arrived' && 'Waiting for customer'}
-                {incomingRide.status === 'in_progress' && 'Driving to dropoff'}
-                {incomingRide.status === 'completed' && 'Trip Completed!'}
+                {incomingRide.status === 'SEARCHING' && <><span className="w-3 h-3 rounded-full bg-black dark:bg-white animate-pulse"></span> New Request</>}
+                {incomingRide.status === 'ASSIGNED' && 'En route to pickup'}
+                {incomingRide.status === 'ARRIVED' && 'Waiting for customer'}
+                {incomingRide.status === 'IN_PROGRESS' && 'Driving to dropoff'}
+                {incomingRide.status === 'COMPLETED' && 'Trip Completed!'}
               </h3>
-              <span className="text-[#00B14F] font-bold text-lg">RM {incomingRide.price}</span>
+              <span className="text-black dark:text-white font-bold text-lg">RM {incomingRide.price_quoted}</span>
             </div>
 
             <div className="bg-zinc-100 dark:bg-[#1c1c1c] rounded-2xl p-4 mb-6">
                <div className="flex items-center gap-4 mb-3">
-                  <div className="w-2.5 h-2.5 bg-[#00B14F] rounded-full"></div>
+                  <div className="w-2.5 h-2.5 bg-black dark:bg-white rounded-full"></div>
                   <div className="flex-1 text-sm text-black dark:text-white truncate">{incomingRide.pickup_address}</div>
                </div>
                <div className="flex items-center gap-4">
-                  <div className="w-2.5 h-2.5 bg-[#FF5A5F] rounded-sm"></div>
+                  <div className="w-2.5 h-2.5 bg-zinc-400 rounded-sm"></div>
                   <div className="flex-1 text-sm text-black dark:text-white truncate">{incomingRide.dropoff_address}</div>
                </div>
             </div>
 
-            {incomingRide.status === 'pending' && (
+            {incomingRide.status === 'SEARCHING' && (
               <div className="flex gap-4">
-                <button onClick={() => setIncomingRide(null)} className="flex-1 bg-zinc-200 dark:bg-[#333] text-black dark:text-white font-bold py-4 rounded-xl">Decline</button>
-                <button onClick={() => updateRideStatus('accepted')} className="flex-1 bg-[#00B14F] text-white font-bold py-4 rounded-xl shadow-lg">Accept</button>
+                <button onClick={() => setIncomingRide(null)} className="flex-1 bg-zinc-200 dark:bg-[#333] text-black dark:text-white font-bold py-4 rounded-xl shadow-sm">Decline</button>
+                <button onClick={() => updateRideStatus('ASSIGNED')} className="flex-1 bg-black dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl shadow-sm">Accept</button>
               </div>
             )}
-            {incomingRide.status === 'accepted' && <button onClick={() => updateRideStatus('arrived')} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl">I Have Arrived</button>}
-            {incomingRide.status === 'arrived' && <button onClick={() => updateRideStatus('in_progress')} className="w-full bg-[#00B14F] text-white font-bold py-4 rounded-xl">Start Trip</button>}
-            {incomingRide.status === 'in_progress' && <button onClick={() => updateRideStatus('completed')} className="w-full bg-[#FF5A5F] text-white font-bold py-4 rounded-xl">Complete Trip</button>}
+            {incomingRide.status === 'ASSIGNED' && <button onClick={() => updateRideStatus('ARRIVED')} className="w-full bg-black dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl shadow-sm">I Have Arrived</button>}
+            {incomingRide.status === 'ARRIVED' && <button onClick={() => updateRideStatus('IN_PROGRESS')} className="w-full bg-black dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl shadow-sm">Start Trip</button>}
+            {incomingRide.status === 'IN_PROGRESS' && <button onClick={() => updateRideStatus('COMPLETED')} className="w-full bg-black dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl shadow-sm">Complete Trip</button>}
           </div>
         )}
 
@@ -291,7 +291,7 @@ export default function DriverMapClient() {
                <button 
                   onClick={() => setIsOnline(!isOnline)}
                   className={`pointer-events-auto px-6 py-2.5 rounded-full font-bold text-base flex items-center gap-2 shadow-[0_10px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_20px_rgba(0,0,0,0.5)] transition-colors border-2 ${
-                    isOnline ? 'bg-[#00B14F] text-white border-[#00B14F] hover:bg-[#009b44]' : 'bg-white dark:bg-[#1c1c1c] text-black dark:text-white border-transparent hover:bg-zinc-100 dark:hover:bg-[#2a2a2a]'
+                    isOnline ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white' : 'bg-white dark:bg-[#1c1c1c] text-black dark:text-white border-transparent hover:bg-zinc-100 dark:hover:bg-[#2a2a2a]'
                   }`}
                >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -303,7 +303,7 @@ export default function DriverMapClient() {
             <div className="bg-white dark:bg-[#242424] pt-8 pb-4 px-4 rounded-t-3xl pointer-events-auto flex flex-col border-t border-zinc-200 dark:border-white/5">
                {/* Status Bar */}
                <div className="bg-zinc-100 dark:bg-[#1c1c1c] rounded-xl p-3 flex items-center gap-3 mb-4 shadow-inner">
-                  <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-[#00B14F]' : 'bg-[#FF5A5F]'}`}></div>
+                  <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-black dark:bg-white' : 'bg-zinc-400'}`}></div>
                   <span className="text-black dark:text-white font-medium text-sm">{isOnline ? "You're online. Finding rides..." : "You're offline."}</span>
                </div>
 

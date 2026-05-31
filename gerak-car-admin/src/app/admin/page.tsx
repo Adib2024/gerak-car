@@ -31,19 +31,19 @@ export default async function Dashboard() {
     .order('created_at', { ascending: false })
     .limit(50)
 
-  // Fetch active rides
+  // Fetch active rides from new unified orders table
   const { count: activeRides } = await supabase
-    .from('rides')
+    .from('orders')
     .select('*', { count: 'exact', head: true })
-    .in('status', ['pending', 'accepted', 'in_progress'])
+    .in('status', ['SEARCHING', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'])
 
-  // Fetch completed revenue (rides for now)
+  // Fetch completed revenue from new unified orders table
   const { data: completedRides } = await supabase
-    .from('rides')
-    .select('price')
-    .eq('status', 'completed')
+    .from('orders')
+    .select('price_quoted')
+    .eq('status', 'COMPLETED')
   
-  const totalRevenue = completedRides?.reduce((sum, r) => sum + Number(r.price), 0) || 0
+  const totalRevenue = completedRides?.reduce((sum, r) => sum + Number(r.price_quoted), 0) || 0
 
   if (!profile?.roles?.includes('admin')) {
     return (
@@ -63,9 +63,9 @@ export default async function Dashboard() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black flex relative overflow-hidden transition-colors duration-300">
-      {/* Background glow effects */}
-      <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-emerald-500/10 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-cyan-500/10 blur-[120px] rounded-full pointer-events-none" />
+      {/* Background glow effects - Removed complex colors for classic look */}
+      <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-zinc-200/20 dark:bg-zinc-800/20 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-zinc-200/20 dark:bg-zinc-800/20 blur-[120px] rounded-full pointer-events-none" />
 
       {/* Desktop Sidebar */}
       <div className="w-72 bg-white dark:bg-black/40 backdrop-blur-3xl border-r border-zinc-200 dark:border-white/10 flex-col hidden md:flex z-10">
@@ -78,7 +78,7 @@ export default async function Dashboard() {
           </div>
         </div>
         <nav className="flex-1 px-6 py-4 space-y-3">
-          <a href="#" className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-500/20 to-cyan-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl font-bold shadow-inner">
+          <a href="#" className="flex items-center gap-3 px-4 py-3 bg-zinc-100 dark:bg-zinc-900 text-black dark:text-white border border-zinc-200 dark:border-white/10 rounded-xl font-bold shadow-sm">
              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
              Overview
           </a>
@@ -113,9 +113,9 @@ export default async function Dashboard() {
                 <Image src="/logo.png" alt="Gerak Car Logo" fill className="object-cover" />
              </div>
            </div>
-           <h2 className="text-black dark:text-white font-extrabold text-xl tracking-wide hidden md:block">Dashboard Overview</h2>
+            <h2 className="text-black dark:text-white font-extrabold text-xl tracking-wide hidden md:block">Dashboard Overview</h2>
            <div className="flex items-center gap-4 ml-auto">
-              <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-1.5 rounded-full text-xs font-bold border border-emerald-200 dark:border-emerald-500/20">Admin</span>
+              <span className="text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-4 py-1.5 rounded-full text-xs font-bold border border-zinc-200 dark:border-white/10">Admin</span>
               <span className="text-zinc-500 dark:text-zinc-400 text-sm font-medium hidden sm:block">{user.email}</span>
            </div>
         </header>
@@ -123,11 +123,11 @@ export default async function Dashboard() {
         <main className="flex-1 p-6 md:p-10 overflow-y-auto">
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
               {/* Stat Card 1 */}
-              <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-xl dark:shadow-2xl relative overflow-hidden group hover:border-emerald-300 dark:hover:border-emerald-500/30 transition-all">
-                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 dark:bg-blue-500/10 blur-[50px] rounded-full group-hover:bg-blue-100 dark:group-hover:bg-blue-500/20 transition-all" />
+              <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-sm relative overflow-hidden group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-100 dark:bg-zinc-900 blur-[50px] rounded-full transition-all" />
                  <div className="flex items-center justify-between mb-6 relative z-10">
                     <h3 className="text-zinc-500 dark:text-zinc-400 font-bold tracking-wide">Total Users</h3>
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 shadow-inner">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-black dark:text-white border border-zinc-200 dark:border-white/10 shadow-sm">
                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                     </div>
                  </div>
@@ -136,11 +136,11 @@ export default async function Dashboard() {
               </div>
               
               {/* Stat Card 2 */}
-              <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-xl dark:shadow-2xl relative overflow-hidden group hover:border-emerald-300 dark:hover:border-emerald-500/30 transition-all">
-                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 dark:bg-emerald-500/10 blur-[50px] rounded-full group-hover:bg-emerald-100 dark:group-hover:bg-emerald-500/20 transition-all" />
+              <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-sm relative overflow-hidden group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-100 dark:bg-zinc-900 blur-[50px] rounded-full transition-all" />
                  <div className="flex items-center justify-between mb-6 relative z-10">
-                    <h3 className="text-zinc-500 dark:text-zinc-400 font-bold tracking-wide">Active Rides</h3>
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 shadow-inner">
+                    <h3 className="text-zinc-500 dark:text-zinc-400 font-bold tracking-wide">Active Orders</h3>
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-black dark:text-white border border-zinc-200 dark:border-white/10 shadow-sm">
                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     </div>
                  </div>
@@ -149,11 +149,11 @@ export default async function Dashboard() {
               </div>
               
               {/* Stat Card 3 */}
-              <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-xl dark:shadow-2xl relative overflow-hidden group hover:border-emerald-300 dark:hover:border-emerald-500/30 transition-all">
-                 <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 dark:bg-purple-500/10 blur-[50px] rounded-full group-hover:bg-purple-100 dark:group-hover:bg-purple-500/20 transition-all" />
+              <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-sm relative overflow-hidden group hover:border-zinc-300 dark:hover:border-zinc-700 transition-all">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-zinc-100 dark:bg-zinc-900 blur-[50px] rounded-full transition-all" />
                  <div className="flex items-center justify-between mb-6 relative z-10">
                     <h3 className="text-zinc-500 dark:text-zinc-400 font-bold tracking-wide">Total Revenue</h3>
-                    <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-500/20 shadow-inner">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-black dark:text-white border border-zinc-200 dark:border-white/10 shadow-sm">
                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
                  </div>
@@ -162,7 +162,7 @@ export default async function Dashboard() {
               </div>
            </div>
 
-           <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-xl dark:shadow-2xl">
+           <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-sm">
               <h3 className="text-black dark:text-white font-extrabold text-xl mb-8">Recent Activity</h3>
               <div className="text-center py-16 bg-zinc-50 dark:bg-white/5 rounded-2xl border border-zinc-200 dark:border-white/5">
                  <div className="w-20 h-20 bg-zinc-200 dark:bg-black/50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner border border-zinc-300 dark:border-white/5">
@@ -172,7 +172,7 @@ export default async function Dashboard() {
                  <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
                    {allUsers?.slice(0, 4).map((u: any) => (
                      <div key={u.id} className="flex items-center gap-4 bg-white dark:bg-black/40 p-4 rounded-2xl border border-zinc-200 dark:border-white/5">
-                       <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-sm border border-emerald-100 dark:border-emerald-500/20">
+                       <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-black dark:text-white font-bold text-sm border border-zinc-200 dark:border-white/10">
                           {u.email.charAt(0).toUpperCase()}
                        </div>
                        <div>
@@ -187,10 +187,10 @@ export default async function Dashboard() {
            </div>
 
            {/* User Management Section */}
-           <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-xl dark:shadow-2xl mt-10">
+           <div className="bg-white dark:bg-black/40 backdrop-blur-xl border border-zinc-200 dark:border-white/10 rounded-3xl p-8 shadow-sm mt-10">
               <div className="flex items-center justify-between mb-8">
                  <h3 className="text-black dark:text-white font-extrabold text-xl">User Management</h3>
-                 <span className="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 px-3 py-1 rounded-full text-xs font-bold">
+                 <span className="bg-zinc-100 dark:bg-zinc-900 text-black dark:text-white border border-zinc-200 dark:border-white/10 px-3 py-1 rounded-full text-xs font-bold">
                     {allUsers?.length || 0} Registered
                  </span>
               </div>

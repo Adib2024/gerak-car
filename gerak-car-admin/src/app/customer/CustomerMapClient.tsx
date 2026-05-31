@@ -44,7 +44,7 @@ export default function CustomerMapClient() {
   
   // Ride State
   const [activeRideId, setActiveRideId] = useState<string | null>(null)
-  const [rideStatus, setRideStatus] = useState<'idle' | 'pending' | 'accepted' | 'arrived' | 'in_progress' | 'completed'>('idle')
+  const [rideStatus, setRideStatus] = useState<'idle' | 'SEARCHING' | 'ASSIGNED' | 'ARRIVED' | 'IN_PROGRESS' | 'COMPLETED'>('idle')
   const [selectedCar, setSelectedCar] = useState<'economy' | 'premium'>('economy')
   const [calculatedFare, setCalculatedFare] = useState<number | null>(null)
   const [driverLocations, setDriverLocations] = useState<any[]>([])
@@ -108,10 +108,10 @@ export default function CustomerMapClient() {
     if (!activeRideId) return
 
     const channel = supabase.channel(`ride-${activeRideId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides', filter: `id=eq.${activeRideId}` }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${activeRideId}` }, (payload) => {
         setRideStatus(payload.new.status as any)
         
-        if (payload.new.status === 'completed') {
+        if (payload.new.status === 'COMPLETED') {
           setTimeout(() => {
             setRideStatus('idle')
             setActiveRideId(null)
@@ -164,18 +164,20 @@ export default function CustomerMapClient() {
 
   const requestRide = async () => {
     if (!pickup || !dropoff || !userId || !calculatedFare) return
-    setRideStatus('pending')
+    setRideStatus('SEARCHING')
 
     const finalPrice = selectedCar === 'premium' ? calculatedFare * 1.5 : calculatedFare
 
-    const { data, error } = await supabase.from('rides').insert({
+    const { data, error } = await supabase.from('orders').insert({
       customer_id: userId,
-      pickup_location: `POINT(${pickup.lng} ${pickup.lat})`,
-      dropoff_location: `POINT(${dropoff.lng} ${dropoff.lat})`,
+      vertical: 'RIDE',
+      payment_method: 'CASH',
+      pickup_coordinate: `POINT(${pickup.lng} ${pickup.lat})`,
+      dropoff_coordinate: `POINT(${dropoff.lng} ${dropoff.lat})`,
       pickup_address: pickup.label,
       dropoff_address: dropoff.label,
-      price: finalPrice,
-      status: 'pending'
+      price_quoted: finalPrice,
+      status: 'SEARCHING'
     }).select().single()
 
     if (error) {
@@ -189,7 +191,7 @@ export default function CustomerMapClient() {
   
   const cancelRide = async () => {
     if (!activeRideId) return
-    await supabase.from('rides').update({ status: 'cancelled' }).eq('id', activeRideId)
+    await supabase.from('orders').update({ status: 'CANCELLED' }).eq('id', activeRideId)
     setRideStatus('idle')
     setActiveRideId(null)
   }
@@ -265,8 +267,8 @@ export default function CustomerMapClient() {
         <div className="absolute top-6 left-0 right-0 z-20 px-6 flex justify-center pointer-events-none">
           <div className="bg-black/90 dark:bg-[#242424]/90 backdrop-blur-md border border-white/20 text-white font-bold py-3 px-6 rounded-full shadow-2xl pointer-events-auto flex items-center gap-3">
              <span className="relative flex h-3 w-3">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${activePinMode === 'pickup' ? 'bg-[#00B14F]' : 'bg-[#FF5A5F]'}`}></span>
-                <span className={`relative inline-flex rounded-full h-3 w-3 ${activePinMode === 'pickup' ? 'bg-[#00B14F]' : 'bg-[#FF5A5F]'}`}></span>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${activePinMode === 'pickup' ? 'bg-black dark:bg-white' : 'bg-black dark:bg-white'}`}></span>
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${activePinMode === 'pickup' ? 'bg-black dark:bg-white' : 'bg-black dark:bg-white'}`}></span>
              </span>
              Click anywhere on the map to set {activePinMode}
              <button onClick={() => setActivePinMode(null)} className="ml-2 text-zinc-400 hover:text-white">✕</button>
@@ -292,10 +294,10 @@ export default function CustomerMapClient() {
             {rideStatus !== 'idle' ? (
               /* ACTIVE RIDE STATUS SHEET */
               <div className="flex flex-col items-center">
-                 {rideStatus === 'pending' && (
+                 {rideStatus === 'SEARCHING' && (
                     <>
-                       <div className="w-16 h-16 bg-[#00B14F]/10 rounded-full flex items-center justify-center mb-4 relative">
-                          <div className="absolute inset-0 rounded-full border-t-2 border-[#00B14F] animate-spin"></div>
+                       <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4 relative">
+                          <div className="absolute inset-0 rounded-full border-t-2 border-black dark:border-white animate-spin"></div>
                           <span className="text-2xl">🚗</span>
                        </div>
                        <h3 className="text-black dark:text-white font-extrabold text-xl mb-1">Looking for drivers...</h3>
@@ -305,9 +307,9 @@ export default function CustomerMapClient() {
                        </button>
                     </>
                  )}
-                 {rideStatus === 'accepted' && (
+                 {rideStatus === 'ASSIGNED' && (
                     <>
-                       <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
+                       <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
                           <span className="text-3xl">🚙</span>
                        </div>
                        <h3 className="text-black dark:text-white font-extrabold text-xl mb-1">Driver is on the way</h3>
@@ -321,31 +323,31 @@ export default function CustomerMapClient() {
                        </div>
                     </>
                  )}
-                 {rideStatus === 'arrived' && (
+                 {rideStatus === 'ARRIVED' && (
                     <>
-                       <div className="w-16 h-16 bg-[#00B14F]/20 rounded-full flex items-center justify-center mb-4 animate-pulse shadow-[0_0_20px_rgba(0,177,79,0.3)]">
+                       <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4 animate-pulse shadow-sm">
                           <span className="text-3xl">📍</span>
                        </div>
-                       <h3 className="text-[#00B14F] font-extrabold text-xl mb-1">Driver has arrived</h3>
+                       <h3 className="text-black dark:text-white font-extrabold text-xl mb-1">Driver has arrived</h3>
                        <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-6">Please meet your driver at the pickup point.</p>
                     </>
                  )}
-                 {rideStatus === 'in_progress' && (
+                 {rideStatus === 'IN_PROGRESS' && (
                     <>
-                       <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mb-4">
+                       <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
                           <span className="text-3xl">🛣️</span>
                        </div>
                        <h3 className="text-black dark:text-white font-extrabold text-xl mb-1">You are in transit</h3>
                        <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-6">Heading to your destination.</p>
                     </>
                  )}
-                 {rideStatus === 'completed' && (
+                 {rideStatus === 'COMPLETED' && (
                     <>
-                       <div className="w-16 h-16 bg-[#00B14F] rounded-full flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(0,177,79,0.5)]">
-                          <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                       <div className="w-16 h-16 bg-black dark:bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
+                          <svg className="w-8 h-8 text-white dark:text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                        </div>
                        <h3 className="text-black dark:text-white font-extrabold text-2xl mb-1">You have arrived</h3>
-                       <p className="text-[#00B14F] font-bold text-lg mb-6">RM {calculatedFare ? (selectedCar === 'premium' ? calculatedFare * 1.5 : calculatedFare).toFixed(2) : '...'}</p>
+                       <p className="text-black dark:text-white font-bold text-lg mb-6">RM {calculatedFare ? (selectedCar === 'premium' ? calculatedFare * 1.5 : calculatedFare).toFixed(2) : '...'}</p>
                     </>
                  )}
               </div>
@@ -361,11 +363,11 @@ export default function CustomerMapClient() {
                   {/* Pickup Line */}
                   <div className="flex items-center gap-4 mb-4">
                      <div className="w-6 h-6 flex items-center justify-center relative z-10">
-                        <div className="w-3 h-3 bg-[#00B14F] rounded-full shadow-sm"></div>
+                        <div className="w-3 h-3 bg-black dark:bg-white rounded-full shadow-sm"></div>
                      </div>
                      <div 
                         onClick={() => setActivePinMode('pickup')}
-                        className={`flex-1 bg-transparent text-sm font-bold cursor-pointer truncate ${activePinMode === 'pickup' ? 'text-[#00B14F]' : 'text-zinc-700 dark:text-zinc-300'}`}
+                        className={`flex-1 bg-transparent text-sm font-bold cursor-pointer truncate ${activePinMode === 'pickup' ? 'text-black dark:text-white' : 'text-zinc-700 dark:text-zinc-300'}`}
                      >
                         {pickup ? pickup.label : "Current Location"}
                      </div>
@@ -377,7 +379,7 @@ export default function CustomerMapClient() {
                   {/* Dropoff Line */}
                   <div className="flex items-center gap-4">
                      <div className="w-6 h-6 flex items-center justify-center relative z-10 bg-zinc-100 dark:bg-[#1c1c1c]">
-                        <div className="w-2.5 h-2.5 bg-[#FF5A5F] rounded-sm"></div>
+                        <div className="w-2.5 h-2.5 bg-zinc-400 dark:bg-zinc-500 rounded-sm"></div>
                      </div>
                      <form onSubmit={handleSearch} className="flex-1 flex gap-2">
                        <input 
@@ -387,7 +389,7 @@ export default function CustomerMapClient() {
                           placeholder="Search destination" 
                           className="w-full bg-transparent text-sm font-bold text-black dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none"
                        />
-                       <button type="submit" disabled={isSearching} className="text-[#00B14F] font-bold text-xs px-2 disabled:opacity-50">
+                       <button type="submit" disabled={isSearching} className="text-black dark:text-white font-bold text-xs px-2 disabled:opacity-50">
                          {isSearching ? '...' : 'SEARCH'}
                        </button>
                      </form>
@@ -464,7 +466,7 @@ export default function CustomerMapClient() {
                 <button 
                   onClick={requestRide}
                   disabled={!pickup || !dropoff || !userId}
-                  className="w-full bg-[#00B14F] hover:bg-[#009b44] text-white font-extrabold py-4 px-6 rounded-2xl transition-all shadow-lg text-lg tracking-wide disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="w-full bg-black dark:bg-white text-white dark:text-black font-extrabold py-4 px-6 rounded-2xl transition-all shadow-sm text-lg tracking-wide disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   {isRouteSelected ? `BOOK ${selectedCar === 'premium' ? 'PREMIUM' : 'ECONOMY'}` : 'CHOOSE DESTINATION'}
                 </button>
