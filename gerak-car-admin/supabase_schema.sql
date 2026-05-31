@@ -30,30 +30,20 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
-DO $$ BEGIN
-    CREATE TYPE gerak_role AS ENUM ('admin', 'driver', 'customer', 'food_runner', 'jubah_runner');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+-- 3. Extend Existing Application Users Layer
+-- The user already has a 'public.users' table with 'roles text[]'. We just need to add the tracking columns.
+ALTER TABLE IF EXISTS public.users 
+    ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS current_coordinate GEOGRAPHY(Point, 4326) NULL;
 
--- 3. Extended Application Profile Layer
-CREATE TABLE IF NOT EXISTS profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    full_name VARCHAR(100) NOT NULL,
-    roles gerak_role[] NOT NULL DEFAULT '{customer}',
-    is_online BOOLEAN DEFAULT FALSE,
-    current_coordinate GEOGRAPHY(Point, 4326) NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Highly-Indexed Spatial Search Layout
-CREATE INDEX IF NOT EXISTS idx_profiles_spatial_loc ON profiles USING GIST (current_coordinate) WHERE is_online = true;
+-- Highly-Indexed Spatial Search Layout for Active Drivers
+CREATE INDEX IF NOT EXISTS idx_users_spatial_loc ON public.users USING GIST (current_coordinate) WHERE is_online = true;
 
 -- 4. The Master Unified Super-App Order Document
 CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    customer_id UUID REFERENCES profiles(id) NOT NULL,
-    provider_id UUID REFERENCES profiles(id) NULL,
+    customer_id UUID REFERENCES public.users(id) NOT NULL,
+    provider_id UUID REFERENCES public.users(id) NULL,
     vertical gerak_vertical NOT NULL,
     status gerak_status NOT NULL DEFAULT 'DRAFT',
     payment_method gerak_payment_type NOT NULL,
@@ -105,23 +95,14 @@ CREATE TABLE IF NOT EXISTS trip_history_archives (
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==========================================
 
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_food_details ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_jubah_details ENABLE ROW LEVEL SECURITY;
 
--- PROFILES RLS
--- Anyone can read profiles (needed for driver/customer details)
-CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
--- Users can insert their own profile
-CREATE POLICY "Users can insert their own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
--- Users can update their own profile (e.g. going online, updating location)
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
-
 -- ORDERS RLS
 -- Admins can see all orders
 CREATE POLICY "Admins view all orders" ON orders FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND 'admin' = ANY(roles))
+    EXISTS (SELECT 1 FROM public.users WHERE public.users.id = auth.uid() AND 'admin' = ANY(roles))
 );
 -- Customers can read their own orders
 CREATE POLICY "Customers view own orders" ON orders FOR SELECT USING (auth.uid() = customer_id);
@@ -146,7 +127,7 @@ CREATE POLICY "Providers can update assigned orders" ON orders FOR UPDATE USING 
 -- PostGIS Bounded Matching Execution
 CREATE OR REPLACE FUNCTION locate_closest_providers(
     pickup_point GEOGRAPHY, 
-    required_role gerak_role, 
+    required_role TEXT, 
     max_radius_meters INT DEFAULT 4000, 
     max_results_limit INT DEFAULT 10
 )
@@ -154,7 +135,7 @@ RETURNS TABLE (provider_id UUID, distance_meters FLOAT) AS $$
 BEGIN
     RETURN QUERY
     SELECT id, ST_Distance(current_coordinate, pickup_point) AS distance
-    FROM profiles
+    FROM public.users
     WHERE is_online = true
       AND required_role = ANY(roles)
       AND ST_DWithin(current_coordinate, pickup_point, max_radius_meters)
@@ -168,11 +149,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION update_driver_location(p_lat FLOAT, p_lng FLOAT, p_is_active BOOLEAN)
 RETURNS VOID AS $$
 BEGIN
-  UPDATE profiles 
+  UPDATE public.users 
   SET 
     current_coordinate = ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography,
-    is_online = p_is_active,
-    updated_at = NOW()
+    is_online = p_is_active
   WHERE id = auth.uid();
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -131,24 +131,42 @@ export default function DriverMapClient() {
   const markers = []
   if (incomingRide) {
     try {
-      const pickupMatch = incomingRide.pickup_coordinate.match(/POINT\(([^ ]+) ([^)]+)\)/)
-      const dropoffMatch = incomingRide.dropoff_coordinate.match(/POINT\(([^ ]+) ([^)]+)\)/)
+      let pickupPos: [number, number] | null = null
+      let dropoffPos: [number, number] | null = null
       
-      if (pickupMatch) {
+      // Parse pickup coordinate (handles both WKT String and GeoJSON Object)
+      if (typeof incomingRide.pickup_coordinate === 'string') {
+         const pickupMatch = incomingRide.pickup_coordinate.match(/POINT\(([^ ]+) ([^)]+)\)/)
+         if (pickupMatch) pickupPos = [parseFloat(pickupMatch[2]), parseFloat(pickupMatch[1])]
+      } else if (incomingRide.pickup_coordinate?.coordinates) {
+         pickupPos = [incomingRide.pickup_coordinate.coordinates[1], incomingRide.pickup_coordinate.coordinates[0]]
+      }
+
+      // Parse dropoff coordinate (handles both WKT String and GeoJSON Object)
+      if (typeof incomingRide.dropoff_coordinate === 'string') {
+         const dropoffMatch = incomingRide.dropoff_coordinate.match(/POINT\(([^ ]+) ([^)]+)\)/)
+         if (dropoffMatch) dropoffPos = [parseFloat(dropoffMatch[2]), parseFloat(dropoffMatch[1])]
+      } else if (incomingRide.dropoff_coordinate?.coordinates) {
+         dropoffPos = [incomingRide.dropoff_coordinate.coordinates[1], incomingRide.dropoff_coordinate.coordinates[0]]
+      }
+      
+      if (pickupPos) {
         markers.push({
           id: 'req_pickup',
-          position: [parseFloat(pickupMatch[2]), parseFloat(pickupMatch[1])] as [number, number],
+          position: pickupPos,
           label: 'PICKUP: ' + incomingRide.pickup_address
         })
       }
-      if (dropoffMatch) {
+      if (dropoffPos) {
         markers.push({
           id: 'req_dropoff',
-          position: [parseFloat(dropoffMatch[2]), parseFloat(dropoffMatch[1])] as [number, number],
+          position: dropoffPos,
           label: 'DROPOFF: ' + incomingRide.dropoff_address
         })
       }
-    } catch(e) {}
+    } catch(e) {
+      console.error("Error parsing coordinates:", e)
+    }
   }
 
   return (

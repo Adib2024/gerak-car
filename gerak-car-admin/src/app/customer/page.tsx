@@ -21,7 +21,19 @@ export default async function CustomerDashboard() {
   const hasAccess = profile && profile.roles && (profile.roles.includes('customer') || profile.roles.includes('admin'))
 
   if (!hasAccess) {
-    redirect('/')
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl p-8 max-w-md text-center shadow-xl">
+           <h1 className="text-2xl font-extrabold text-slate-800 mb-2">Access Denied</h1>
+           <p className="text-slate-500 mb-8 font-medium">You do not have customer privileges.</p>
+           <form action="/auth/signout" method="post">
+              <button className="bg-red-500 hover:bg-red-600 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg w-full">
+                Sign Out
+              </button>
+           </form>
+        </div>
+      </div>
+    )
   }
 
   const firstName = profile.name ? profile.name.split(' ')[0] : 'Student'

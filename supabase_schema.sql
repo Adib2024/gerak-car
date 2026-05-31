@@ -15,12 +15,12 @@ CREATE OR REPLACE FUNCTION enforce_email_domain()
 RETURNS trigger AS $$
 BEGIN
   -- 1. ALLOW THE ADMIN EMAIL (Change this to your actual email!)
-  IF NEW.email = 'YOUR_ADMIN_EMAIL@gmail.com' THEN
+  IF NEW.email = 'gerakccar@gmail.com' THEN
     RETURN NEW;
   END IF;
 
   -- 2. ENFORCE STUDENT DOMAIN FOR EVERYONE ELSE (Change this to the university domain!)
-  IF NEW.email NOT LIKE '%@student.university.edu.my' THEN
+  IF NEW.email NOT LIKE '%@umpsa.edu.my' THEN
     RAISE EXCEPTION 'Only university student emails are allowed to register.';
   END IF;
 
@@ -35,11 +35,11 @@ CREATE TRIGGER check_email_domain_trigger
   FOR EACH ROW EXECUTE FUNCTION enforce_email_domain();
 
 -- ====================================================================
--- 3. TABLES SETUP
+-- 3. TABLES SETUP (USING EXISTING USERS TABLE)
 -- ====================================================================
 
--- Create custom users table linked to auth.users
-CREATE TABLE public.users (
+-- Create custom users table linked to auth.users (IF NOT EXISTS prevents the crash!)
+CREATE TABLE IF NOT EXISTS public.users (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
   name TEXT,
@@ -47,6 +47,11 @@ CREATE TABLE public.users (
   roles TEXT[] DEFAULT ARRAY['customer']::TEXT[],
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ADD NEW TRACKING COLUMNS FOR THE UNIFIED ARCHITECTURE
+ALTER TABLE IF EXISTS public.users 
+    ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS current_coordinate GEOGRAPHY(Point, 4326) NULL;
 
 -- Auto-insert into public.users when a user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -58,7 +63,7 @@ BEGIN
     NEW.email,
     NEW.raw_user_meta_data->>'name',
     CASE 
-      WHEN NEW.email = 'YOUR_ADMIN_EMAIL@gmail.com' THEN ARRAY['admin']::TEXT[]
+      WHEN NEW.email = 'gerakccar@gmail.com' THEN ARRAY['admin']::TEXT[]
       ELSE ARRAY['customer']::TEXT[] 
     END
   );
@@ -72,158 +77,215 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Runner Locations Table (For Realtime Map Tracking)
-CREATE TABLE public.runner_locations (
-  runner_id UUID REFERENCES public.users(id) ON DELETE CASCADE PRIMARY KEY,
-  location geography(Point, 4326),
-  is_active BOOLEAN DEFAULT false,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+
+-- ==========================================
+-- 4. NEW UNIFIED SUPER-APP ARCHITECTURE
+-- ==========================================
+
+DO $$ BEGIN
+    CREATE TYPE gerak_vertical AS ENUM ('RIDE', 'FOOD', 'JUBAH_RUNNER');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE gerak_status AS ENUM ('DRAFT', 'SEARCHING', 'ASSIGNED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE gerak_payment_status AS ENUM ('UNPAID', 'PENDING_VERIFICATION', 'SETTLED');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE gerak_payment_type AS ENUM ('CASH', 'DUITNOW_QR');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Highly-Indexed Spatial Search Layout for Active Drivers
+CREATE INDEX IF NOT EXISTS idx_users_spatial_loc ON public.users USING GIST (current_coordinate) WHERE is_online = true;
+
+-- The Master Unified Super-App Order Document
+CREATE TABLE IF NOT EXISTS orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id UUID REFERENCES public.users(id) NOT NULL,
+    provider_id UUID REFERENCES public.users(id) NULL,
+    vertical gerak_vertical NOT NULL,
+    status gerak_status NOT NULL DEFAULT 'DRAFT',
+    payment_method gerak_payment_type NOT NULL,
+    payment_state gerak_payment_status NOT NULL DEFAULT 'UNPAID',
+    price_quoted DECIMAL(10, 2) NOT NULL,
+    pickup_coordinate GEOGRAPHY(Point, 4326) NOT NULL,
+    dropoff_coordinate GEOGRAPHY(Point, 4326) NOT NULL,
+    pickup_address TEXT NULL,
+    dropoff_address TEXT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Rides Table
-CREATE TABLE public.rides (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  customer_id UUID REFERENCES public.users(id),
-  driver_id UUID REFERENCES public.users(id),
-  pickup_location geography(Point, 4326) NOT NULL,
-  dropoff_location geography(Point, 4326) NOT NULL,
-  pickup_address TEXT,
-  dropoff_address TEXT,
-  status TEXT CHECK (status IN ('pending', 'accepted', 'in_progress', 'completed', 'cancelled')) DEFAULT 'pending',
-  price DECIMAL(10,2) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
-);
+-- Spatial Indexes for Fast Geographical Matching Updates
+CREATE INDEX IF NOT EXISTS idx_orders_pickup_spatial ON orders USING GIST (pickup_coordinate);
+CREATE INDEX IF NOT EXISTS idx_orders_status_filtering ON orders (status) WHERE status = 'SEARCHING';
 
--- Food Delivery Tables
-CREATE TABLE public.restaurants (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  location geography(Point, 4326),
-  address TEXT,
-  is_open BOOLEAN DEFAULT true,
-  image_url TEXT
-);
-
-CREATE TABLE public.menu_items (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  restaurant_id UUID REFERENCES public.restaurants(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  description TEXT,
-  price DECIMAL(10,2) NOT NULL,
-  image_url TEXT,
-  is_available BOOLEAN DEFAULT true
-);
-
-CREATE TABLE public.food_orders (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  customer_id UUID REFERENCES public.users(id),
-  runner_id UUID REFERENCES public.users(id),
-  restaurant_id UUID REFERENCES public.restaurants(id),
-  delivery_location geography(Point, 4326) NOT NULL,
-  delivery_address TEXT,
-  status TEXT CHECK (status IN ('pending', 'accepted', 'picked_up', 'delivered', 'cancelled')) DEFAULT 'pending',
-  total_price DECIMAL(10,2) NOT NULL,
-  delivery_fee DECIMAL(10,2) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
-);
-
-CREATE TABLE public.food_order_items (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  order_id UUID REFERENCES public.food_orders(id) ON DELETE CASCADE,
-  menu_item_id UUID REFERENCES public.menu_items(id),
-  quantity INTEGER NOT NULL CHECK (quantity > 0),
-  unit_price DECIMAL(10,2) NOT NULL
-);
-
--- Jubah Delivery Tables
-CREATE TABLE public.jubah_orders (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  customer_id UUID REFERENCES public.users(id),
-  runner_id UUID REFERENCES public.users(id),
-  pickup_location geography(Point, 4326) NOT NULL,
-  dropoff_location geography(Point, 4326) NOT NULL,
-  pickup_address TEXT,
-  dropoff_address TEXT,
-  jubah_size TEXT NOT NULL,
-  status TEXT CHECK (status IN ('pending', 'accepted', 'picked_up', 'delivered', 'cancelled')) DEFAULT 'pending',
-  price DECIMAL(10,2) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
-);
-
--- ====================================================================
--- 4. ROW LEVEL SECURITY (RLS)
--- ====================================================================
+-- ==========================================
+-- 5. ROW LEVEL SECURITY (RLS)
+-- ==========================================
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.runner_locations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.rides ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.restaurants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.food_orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.food_order_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.jubah_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+
+-- Helper function to break infinite recursion in RLS policies
+-- We use SET search_path = public to strictly isolate the execution context
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_is_admin BOOLEAN;
+BEGIN
+  SELECT 'admin' = ANY(roles) INTO v_is_admin FROM public.users WHERE id = auth.uid();
+  RETURN COALESCE(v_is_admin, FALSE);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- WIPE ALL EXISTING POLICIES ON USERS TO PREVENT LINGERING RECURSION BUGS
+DO $$ 
+DECLARE 
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT policyname FROM pg_policies WHERE tablename = 'users' AND schemaname = 'public') 
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON public.users', r.policyname);
+    END LOOP;
+END $$;
 
 -- Users can read their own profile, admins can read all
 CREATE POLICY "Users can view own profile" ON public.users FOR SELECT USING (auth.uid() = id);
+
 CREATE POLICY "Admins can view all profiles" ON public.users FOR SELECT USING (
-  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND 'admin' = ANY(roles))
+  public.is_admin()
 );
 
--- Runner locations are readable by everyone (so customers can see cars/runners)
-CREATE POLICY "Anyone can view runner locations" ON public.runner_locations FOR SELECT USING (true);
--- Only the specific runner can update their own location
-CREATE POLICY "Runners can update own location" ON public.runner_locations FOR ALL USING (auth.uid() = runner_id);
-
--- Rides
-CREATE POLICY "Users can view relevant rides" ON public.rides FOR SELECT USING (
-  auth.uid() = customer_id OR auth.uid() = driver_id OR 
-  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND 'admin' = ANY(roles))
-);
-CREATE POLICY "Customers can insert rides" ON public.rides FOR INSERT WITH CHECK (auth.uid() = customer_id);
-CREATE POLICY "Users can update relevant rides" ON public.rides FOR UPDATE USING (
-  auth.uid() = customer_id OR auth.uid() = driver_id
+-- ORDERS RLS
+-- Admins can see all orders
+DROP POLICY IF EXISTS "Admins view all orders" ON orders;
+CREATE POLICY "Admins view all orders" ON orders FOR SELECT USING (
+    public.is_admin()
 );
 
--- Restaurants and Menus (Public read)
-CREATE POLICY "Anyone can view restaurants" ON public.restaurants FOR SELECT USING (true);
-CREATE POLICY "Anyone can view menus" ON public.menu_items FOR SELECT USING (true);
+-- Customers can read their own orders
+DROP POLICY IF EXISTS "Customers view own orders" ON orders;
+CREATE POLICY "Customers view own orders" ON orders FOR SELECT USING (auth.uid() = customer_id);
 
--- Food Orders
-CREATE POLICY "Users can view relevant food orders" ON public.food_orders FOR SELECT USING (
-  auth.uid() = customer_id OR auth.uid() = runner_id OR 
-  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND 'admin' = ANY(roles))
-);
-CREATE POLICY "Customers can insert food orders" ON public.food_orders FOR INSERT WITH CHECK (auth.uid() = customer_id);
-CREATE POLICY "Users can update relevant food orders" ON public.food_orders FOR UPDATE USING (
-  auth.uid() = customer_id OR auth.uid() = runner_id
+-- Providers can read orders assigned to them, or searching orders
+DROP POLICY IF EXISTS "Providers view assigned or searching orders" ON orders;
+CREATE POLICY "Providers view assigned or searching orders" ON orders FOR SELECT USING (
+    auth.uid() = provider_id OR status = 'SEARCHING'
 );
 
--- Food Order Items
-CREATE POLICY "Users can view relevant food order items" ON public.food_order_items FOR SELECT USING (
-  EXISTS (SELECT 1 FROM public.food_orders WHERE id = order_id AND (customer_id = auth.uid() OR runner_id = auth.uid()))
-);
-CREATE POLICY "Customers can insert food order items" ON public.food_order_items FOR INSERT WITH CHECK (
-  EXISTS (SELECT 1 FROM public.food_orders WHERE id = order_id AND customer_id = auth.uid())
+-- Customers can insert orders for themselves
+DROP POLICY IF EXISTS "Customers can create orders" ON orders;
+CREATE POLICY "Customers can create orders" ON orders FOR INSERT WITH CHECK (auth.uid() = customer_id);
+
+-- Customers can update their own orders (e.g., cancel)
+DROP POLICY IF EXISTS "Customers can update own orders" ON orders;
+CREATE POLICY "Customers can update own orders" ON orders FOR UPDATE USING (auth.uid() = customer_id);
+
+-- Providers can update orders they are assigned to (e.g., in_progress, completed) or if they are accepting a searching order
+DROP POLICY IF EXISTS "Providers can update assigned orders" ON orders;
+CREATE POLICY "Providers can update assigned orders" ON orders FOR UPDATE USING (
+    auth.uid() = provider_id OR status = 'SEARCHING'
 );
 
--- Jubah Orders
-CREATE POLICY "Users can view relevant jubah orders" ON public.jubah_orders FOR SELECT USING (
-  auth.uid() = customer_id OR auth.uid() = runner_id OR 
-  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND 'admin' = ANY(roles))
-);
-CREATE POLICY "Customers can insert jubah orders" ON public.jubah_orders FOR INSERT WITH CHECK (auth.uid() = customer_id);
-CREATE POLICY "Users can update relevant jubah orders" ON public.jubah_orders FOR UPDATE USING (
-  auth.uid() = customer_id OR auth.uid() = runner_id
-);
 
--- ====================================================================
--- 5. REALTIME SETUP
--- ====================================================================
--- Enable realtime for tracking and orders
-alter publication supabase_realtime add table public.runner_locations;
-alter publication supabase_realtime add table public.rides;
-alter publication supabase_realtime add table public.food_orders;
-alter publication supabase_realtime add table public.jubah_orders;
+-- ==========================================
+-- 6. REALTIME SETUP
+-- ==========================================
+-- Enable realtime for tracking and orders safely
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'users') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'orders') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
+  END IF;
+END $$;
+
+-- ==========================================
+-- 7. FUNCTIONS & RPCs
+-- ==========================================
+
+-- PostGIS Bounded Matching Execution
+DROP FUNCTION IF EXISTS locate_closest_providers;
+CREATE OR REPLACE FUNCTION locate_closest_providers(
+    pickup_point GEOGRAPHY, 
+    required_role TEXT, 
+    max_radius_meters INT DEFAULT 4000, 
+    max_results_limit INT DEFAULT 10
+)
+RETURNS TABLE (provider_id UUID, distance_meters FLOAT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT id, ST_Distance(current_coordinate, pickup_point) AS distance
+    FROM public.users
+    WHERE is_online = true
+      AND required_role = ANY(roles)
+      AND ST_DWithin(current_coordinate, pickup_point, max_radius_meters)
+    ORDER BY distance ASC
+    LIMIT max_results_limit;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Safely update driver location
+DROP FUNCTION IF EXISTS update_driver_location;
+CREATE OR REPLACE FUNCTION update_driver_location(p_lat FLOAT, p_lng FLOAT, p_is_active BOOLEAN)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE public.users 
+  SET 
+    current_coordinate = ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography,
+    is_online = p_is_active
+  WHERE id = auth.uid();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Securely accept an order using Row-Level Locking (Mutex)
+DROP FUNCTION IF EXISTS accept_order;
+CREATE OR REPLACE FUNCTION accept_order(p_order_id UUID)
+RETURNS TABLE(success BOOLEAN, message TEXT) AS $$
+DECLARE
+  v_status gerak_status;
+BEGIN
+  -- 1. Lock the row to prevent race conditions
+  SELECT status INTO v_status
+  FROM orders
+  WHERE id = p_order_id
+  FOR UPDATE NOWAIT;
+
+  -- 2. Check if it's still available
+  IF v_status != 'SEARCHING' THEN
+    RETURN QUERY SELECT FALSE, 'Order is no longer available.';
+    RETURN;
+  END IF;
+
+  -- 3. Assign to provider
+  UPDATE orders
+  SET 
+    status = 'ASSIGNED',
+    provider_id = auth.uid(),
+    updated_at = NOW()
+  WHERE id = p_order_id;
+
+  RETURN QUERY SELECT TRUE, 'Order assigned successfully.';
+EXCEPTION
+  WHEN lock_not_available THEN
+    RETURN QUERY SELECT FALSE, 'Another driver is currently accepting this order.';
+  WHEN others THEN
+    RETURN QUERY SELECT FALSE, SQLERRM;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

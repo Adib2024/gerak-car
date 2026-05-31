@@ -16,15 +16,31 @@ export default async function RootPage() {
   }
 
   // Fetch user profile from public.users to determine roles
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('users')
     .select('roles, name')
     .eq('id', user.id)
     .single()
 
   if (!profile || !profile.roles) {
-    // Fallback if roles is not found to prevent infinite login loop
-    redirect('/customer')
+    // Fallback if roles is not found: return an error screen instead of redirecting
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
+        <h1 className="text-white text-3xl font-bold mb-4">Account Setup Incomplete</h1>
+        <p className="text-zinc-400 mb-8 max-w-md">We couldn't find your user profile. This usually happens if there was an issue during registration. Please contact support or try registering again.</p>
+        
+        {profileError && (
+          <div className="bg-red-900/50 border border-red-500 text-red-200 p-4 rounded-xl mb-8 max-w-md text-left text-sm overflow-auto">
+             <p className="font-bold mb-1">Database Error:</p>
+             <code>{JSON.stringify(profileError, null, 2)}</code>
+          </div>
+        )}
+
+        <form action="/auth/signout" method="post">
+           <button className="bg-red-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-red-500 transition-colors">Sign Out</button>
+        </form>
+      </div>
+    )
   }
 
   const roles = profile.roles as string[]
